@@ -6,7 +6,7 @@ app.use(express.json({ limit: "2mb" }));
 const BOT_TOKEN = (process.env.BOT_TOKEN || "").trim();
 const INBOX_CHAT_ID = Number(process.env.INBOX_CHAT_ID || 0);
 const REVIEW_CHAT_ID = Number(process.env.REVIEW_CHAT_ID || 0);
-const DEST_FORUM_CHAT_ID = Number(process.env.DEST_FORUM_CHAT_ID || 0);
+//const DEST_FORUM_CHAT_ID = Number(process.env.DEST_FORUM_CHAT_ID || 0);
 
 function mustEnv(name, val) {
   if (!val) throw new Error(`Missing env var: ${name}`);
