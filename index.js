@@ -44,6 +44,14 @@ app.post("/webhook", async (req, res) => {
     const text = (msg.text || msg.caption || "").trim();
     if (!text) return;
 
+const chatId = msg.chat?.id;
+const chatType = msg.chat?.type;
+const title = msg.chat?.title || msg.chat?.username || "";
+await tg("sendMessage", {
+  chat_id: chatId,
+  text: `✅ Chat info:\nID: ${chatId}\nType: ${chatType}\nTitle: ${title}`
+});
+    
     // فلترة: فقط من INBOX
     if (chatId !== INBOX_CHAT_ID) return;
 
