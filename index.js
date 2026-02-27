@@ -3,7 +3,7 @@ import express from "express";
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
-const BOT_TOKEN = (process.env.BOT_TOKEN || "").trim();
+const BOT_TOKEN = (process.env.8270367865:AAH57CWgAMHbU5eow0r0UqZLiuGj2TRV48w || "").trim();
 const INBOX_CHAT_ID = Number(process.env.INBOX_CHAT_ID || 0);
 const REVIEW_CHAT_ID = Number(process.env.REVIEW_CHAT_ID || 0);
 const DEST_FORUM_CHAT_ID = Number(process.env.DEST_FORUM_CHAT_ID || 0);
@@ -17,7 +17,7 @@ mustEnv("REVIEW_CHAT_ID", REVIEW_CHAT_ID);
 mustEnv("DEST_FORUM_CHAT_ID", DEST_FORUM_CHAT_ID);
 
 async function tg(method, payload) {
-  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+  const res = await fetch(`https://api.telegram.org/bot${8270367865:AAH57CWgAMHbU5eow0r0UqZLiuGj2TRV48w}/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload || {})
