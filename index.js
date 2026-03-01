@@ -35,43 +35,33 @@ app.get("/", (req, res) => res.status(200).send("ok"));
 
 // Telegram webhook endpoint
 app.post("/webhook", async (req, res) => {
-  // رد سريع 200 حتى ما تتراكم pending updates
   res.status(200).send("ok");
+
+  // ✅ Logs للتأكد أن تيليجرام يضرب endpoint
+  console.log("✅ /webhook HIT", new Date().toISOString());
+  console.log("update keys:", Object.keys(req.body || {}));
 
   try {
     const update = req.body || {};
     const msg = update.message || update.channel_post;
-    if (!msg) return;
-
-    const chatId = msg.chat?.id;
-    const chatType = msg.chat?.type;
-    const title = msg.chat?.title || msg.chat?.username || "";
-    const text = (msg.text || msg.caption || "").trim();
-    if (!text) return;
-
-    // ✅ أمر استخراج Chat ID (اكتب /id بأي كروب)
-    if (text === "/id") {
-      await tg("sendMessage", {
-        chat_id: chatId,
-        text: `✅ Chat info:\nID: ${chatId}\nType: ${chatType}\nTitle: ${title}`,
-      });
+    if (!msg) {
+      console.log("ℹ️ No message in update");
       return;
     }
 
-    // فلترة: فقط من INBOX
-    if (chatId !== INBOX_CHAT_ID) return;
+    const chatId = msg.chat?.id;
+    const text = (msg.text || msg.caption || "").trim();
 
-    // إذا ما عندك REVIEW بعد، خلّه يرد داخل نفس INBOX مؤقتاً:
-    const target = REVIEW_CHAT_ID || INBOX_CHAT_ID;
+    console.log("✅ msg:", { chatId, text: text.slice(0, 80) });
 
+    // ✅ رد سريع للاختبار (مؤقت)
     await tg("sendMessage", {
-      chat_id: target,
-      text: `📥 وصل إعلان جديد من INBOX:\n\n${text.slice(0, 3500)}`,
+      chat_id: chatId,
+      text: "✅ وصلتني رسالتك (TEST)"
     });
+
+    // (بعد ما نتأكد، نرجع لمنطق الفرز)
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
+});nning on port", PORT));
