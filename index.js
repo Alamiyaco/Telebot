@@ -54,11 +54,14 @@ app.post("/webhook", async (req, res) => {
 
     console.log("✅ msg:", { chatId, text: text.slice(0, 80) });
 
-    // ✅ رد سريع للاختبار (مؤقت)
+    // لا تتعامل إلا مع رسائل كروب INBOX
+    if (chatId !== INBOX_CHAT_ID) return;
+
+    // أرسلها إلى REVIEW للموافقة
     await tg("sendMessage", {
-      chat_id: chatId,
-      text: "✅ وصلتني رسالتك (TEST)"
-    });
+     chat_id: REVIEW_CHAT_ID,
+    text: `📥 إعلان جديد بانتظار المراجعة:\n\n${text}`
+});
 
     // (بعد ما نتأكد، نرجع لمنطق الفرز)
   } catch (e) {
