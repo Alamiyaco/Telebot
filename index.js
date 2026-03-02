@@ -37,37 +37,27 @@ app.get("/", (req, res) => res.status(200).send("ok"));
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
 
-  // ✅ Logs للتأكد أن تيليجرام يضرب endpoint
-  console.log("✅ /webhook HIT", new Date().toISOString());
-  console.log("update keys:", Object.keys(req.body || {}));
-
   try {
     const update = req.body || {};
     const msg = update.message || update.channel_post;
-    if (!msg) {
-      console.log("ℹ️ No message in update");
-      return;
-    }
+    if (!msg) return;
 
     const chatId = msg.chat?.id;
     const text = (msg.text || msg.caption || "").trim();
+    if (!text) return;
 
     console.log("✅ msg:", { chatId, text: text.slice(0, 80) });
 
-    // لا تتعامل إلا مع رسائل كروب INBOX
+    // ✅ فقط من INBOX
     if (chatId !== INBOX_CHAT_ID) return;
 
-    // أرسلها إلى REVIEW للموافقة
+    // ✅ يرسل للـ REVIEW
     await tg("sendMessage", {
-     chat_id: REVIEW_CHAT_ID,
-    text: `📥 إعلان جديد بانتظار المراجعة:\n\n${text}`
-});
+      chat_id: REVIEW_CHAT_ID,
+      text: `📥 إعلان جديد (بانتظار الموافقة):\n\n${text.slice(0, 3500)}`
+    });
 
-    // (بعد ما نتأكد، نرجع لمنطق الفرز)
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
 });
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
