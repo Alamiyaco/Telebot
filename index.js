@@ -3,6 +3,7 @@ import express from "express";
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
+// ===== ENV =====
 const BOT_TOKEN = (process.env.BOT_TOKEN || "").trim();
 const INBOX_CHAT_ID = Number(process.env.INBOX_CHAT_ID || 0);
 const REVIEW_CHAT_ID = Number(process.env.REVIEW_CHAT_ID || 0);
@@ -17,6 +18,7 @@ mustEnv("INBOX_CHAT_ID", INBOX_CHAT_ID);
 mustEnv("REVIEW_CHAT_ID", REVIEW_CHAT_ID);
 mustEnv("QUDRAT_CHAT_ID", QUDRAT_CHAT_ID);
 
+// ===== Telegram caller =====
 async function tg(method, payload) {
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
     method: "POST",
@@ -29,111 +31,69 @@ async function tg(method, payload) {
   return json;
 }
 
-// Health check
+// ===== Helpers =====
+function normalizeText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+// تصنيف بسيط مؤقت (بعدها نطوره)
+// - إذا بيه ايميل/واتساب/هاتف => نعتبره واضح ويروح QUDRAT
+// - غير واضح => REVIEW
+function classifyJob(text) {
+  const t = text.toLowerCase();
+
+  const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
+  const hasPhone = /(\+?\d[\d\s\-()]{7,}\d)/.test(text);
+  const hasWhats = t.includes("whatsapp") || t.includes("واتساب");
+
+  if (hasEmail || hasPhone || hasWhats) return { bucket: "QUDRAT", reason: "has contact" };
+  return { bucket: "REVIEW", reason: "missing contact" };
+}
+
+function formatForSend(originalText, decision) {
+  return `🔎 Auto Sort: ${decision.bucket} (${decision.reason})\n\n${originalText}`;
+}
+
+// ===== Health check =====
 app.get("/", (req, res) => res.status(200).send("ok"));
 
-// ---- Simple rule-based classifier ----
-function normalizeText(s) {
-  return (s || "")
-    .replace(/\u200f|\u200e/g, "")
-    .replace(/[^\S\r\n]+/g, " ")
-    .trim();
-}
-
-function hasAny(text, arr) {
-  const t = text.toLowerCase();
-  return arr.some((k) => t.includes(k));
-}
-
-/**
- * Decision:
- * - If spam => ignore
- * - If has enough job info => QUDRAT
- * - else => REVIEW
- */
-function classifyJob(textRaw) {
-  const text = normalizeText(textRaw);
-
-  // 1) Spam / not a job
-  const spamKeywords = [
-    "اعلان ممول",
-    "اشترك",
-    "subscribe",
-    "تحميل",
-    "download",
-    "vpn",
-    "تداول",
-    "forex",
-    "crypto",
-    "عملات",
-    "ربح يومي",
-    "قروض",
-  ];
-  if (hasAny(text, spamKeywords)) return { bucket: "IGNORE", reason: "spam_keywords" };
-
-  // 2) Job-likeness signals
-  const jobKeywords = [
-    "فرصة عمل",
-    "وظيفة",
-    "مطلوب",
-    "تعلن",
-    "招聘", // just in case
-    "hiring",
-    "job",
-    "vacancy",
-    "position",
-  ];
-  const looksLikeJob = hasAny(text, jobKeywords) || text.includes("CV") || text.includes("السيرة");
-
-  // 3) Completeness checks (simple heuristics)
-  const hasTitle = looksLikeJob || text.length > 40;
-  const hasLocation = hasAny(text, ["بغداد", "البصرة", "اربيل", "أربيل", "نينوى", "النجف", "كربلاء", "الموصل", "المنصور", "الكرادة", "location", "in iraq"]);
-  const hasCompany = hasAny(text, ["شركة", "مجموعة", "factory", "company", "co."]) || /شركة\s+\S+/.test(text);
-  const hasApply = hasAny(text, ["للتقديم", "ارسال", "إرسال", "apply", "send", "واتساب", "whatsapp", "@gmail", "@yahoo", "t.me/"]) || /\b07\d{9}\b/.test(text);
-
-  // Score
-  let score = 0;
-  if (hasTitle) score += 1;
-  if (hasLocation) score += 1;
-  if (hasCompany) score += 1;
-  if (hasApply) score += 1;
-
-  // Decision rule
-  if (score >= 3) return { bucket: "QUDRAT", reason: `score_${score}` };
-  return { bucket: "REVIEW", reason: `score_${score}` };
-}
-
-// Telegram webhook endpoint
+// ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
 
   try {
     const update = req.body || {};
     const msg = update.message || update.channel_post;
-    if (!msg) return;
+    if (!msg) {
+      console.log("ℹ️ No message in update");
+      return;
+    }
 
     const chatId = msg.chat?.id;
     const text = normalizeText(msg.text || msg.caption || "");
     if (!text) return;
 
     console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID });
+    console.log("✅ /webhook HIT", new Date().toISOString());
     console.log("✅ msg:", { chatId, preview: text.slice(0, 120) });
 
-    // ✅ فقط من كروب Index (Inbox)
+    // ✅ نشتغل فقط على كروب الـIndex
     if (chatId !== INBOX_CHAT_ID) return;
 
-    // هنا احسب القرار
-    const decision = classifyJob(text); // أو أي اسم دالتك
+    const decision = classifyJob(text);
     const targetChatId = decision.bucket === "QUDRAT" ? QUDRAT_CHAT_ID : REVIEW_CHAT_ID;
 
     console.log("decision:", decision, "target:", targetChatId);
 
     await tg("sendMessage", {
       chat_id: targetChatId,
-      text: formatForSend(text, decision) // أو text فقط بالبداية
+      text: formatForSend(text, decision),
     });
-
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
 });
+
+// ✅ Render لازم يسمع على PORT
+const PORT = Number(process.env.PORT || 10000);
+app.listen(PORT, () => console.log("Server running on port", PORT));
