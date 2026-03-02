@@ -105,7 +105,6 @@ function classifyJob(textRaw) {
 
 // Telegram webhook endpoint
 app.post("/webhook", async (req, res) => {
-  // لازم رد سريع
   res.status(200).send("ok");
 
   try {
@@ -117,34 +116,24 @@ app.post("/webhook", async (req, res) => {
     const text = normalizeText(msg.text || msg.caption || "");
     if (!text) return;
 
-    // Logs للتأكد
-    console.log("✅ /webhook HIT", new Date().toISOString());
-    console.log("msg:", { chatId, preview: text.slice(0, 120) });
+    console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID });
+    console.log("✅ msg:", { chatId, preview: text.slice(0, 120) });
 
-    // فقط من كروب Index
+    // ✅ فقط من كروب Index (Inbox)
     if (chatId !== INBOX_CHAT_ID) return;
 
-    const decision = classifyJob(text);
-    console.log("decision:", decision);
-
-    if (decision.bucket === "IGNORE") return;
-
+    // هنا احسب القرار
+    const decision = classifyJob(text); // أو أي اسم دالتك
     const targetChatId = decision.bucket === "QUDRAT" ? QUDRAT_CHAT_ID : REVIEW_CHAT_ID;
 
-    // صياغة مخرجات موحدة
-    const header =
-      decision.bucket === "QUDRAT"
-        ? "✅ (Auto) إعلان مناسب → Qudrat"
-        : "🟡 (Auto) يحتاج مراجعة → Review";
+    console.log("decision:", decision, "target:", targetChatId);
 
     await tg("sendMessage", {
       chat_id: targetChatId,
-      text: `${header}\nReason: ${decision.reason}\n\n${text.slice(0, 3500)}`,
+      text: formatForSend(text, decision) // أو text فقط بالبداية
     });
+
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
 });
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
