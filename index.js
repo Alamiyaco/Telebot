@@ -64,4 +64,7 @@ app.post("/webhook", async (req, res) => {
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
-});nning on port", PORT));
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log("Server running on port", PORT));
