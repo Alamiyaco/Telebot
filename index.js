@@ -155,7 +155,6 @@ await tg("sendMessage", {
 ${text}`
 });
     
-    const targetChatId = decision.bucket === "QUDRAT" ? QUDRAT_CHAT_ID : REVIEW_CHAT_ID;
 
     console.log("decision:", decision, "target:", targetChatId);
 
