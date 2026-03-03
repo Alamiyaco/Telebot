@@ -56,7 +56,69 @@ function formatForSend(originalText, decision) {
 
 // ===== Health check =====
 app.get("/", (req, res) => res.status(200).send("ok"));
+// ===== Strict Validation Logic =====
 
+// normalizeText
+function normalizeText(s = "") {
+  return (s || "")
+    .replace(/\u200f|\u200e|\u202a|\u202b|\u202c/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractCompany(text) {
+  const t = normalizeText(text);
+  const re = /(?:^|\n|\s)(?:شركة|شركه|مجموعة شركات|مجموعة|مؤسسة|مصنع|معمل|مجمع|مكتب)\s+([^\n\-–—|]{3,60})/i;
+  const m = t.match(re);
+  if (!m) return null;
+  return (m[1] || "").trim();
+}
+
+function extractJobTitle(text) {
+  const t = normalizeText(text);
+
+  const re1 = /(?:عنوان\s*الوظيف(?:ة|ي)\s*[:：]\s*)([^\n\-–—|]{3,80})/i;
+  const m1 = t.match(re1);
+  if (m1) return m1[1].trim();
+
+  const re2 = /(?:مطلوب|فرصة عمل|وظيفة شاغرة|نبحث عن|Hiring|Position|Job Title)\s*[:：\-–—]?\s*([^\n]{3,80})/i;
+  const m2 = t.match(re2);
+  if (m2) return m2[1].trim();
+
+  return null;
+}
+
+function hasContact(text) {
+  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const phone = /(?:\+?\d[\d\s\-]{7,}\d)/;
+  const link  = /(https?:\/\/\S+|t\.me\/\S+)/i;
+  return email.test(text) || phone.test(text) || link.test(text);
+}
+
+function hasSalary(text) {
+  const salaryWord = /(راتب|Salary|أجر)/i;
+  const number = /(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/;
+  return salaryWord.test(text) && number.test(text);
+}
+
+function decideStrict(text) {
+  const company = extractCompany(text);
+  const title   = extractJobTitle(text);
+  const contact = hasContact(text);
+  const salary  = hasSalary(text);
+
+  const missing = [];
+  if (!company) missing.push("company");
+  if (!title)   missing.push("job_title");
+  if (!contact) missing.push("contact");
+  if (!salary)  missing.push("salary");
+
+  if (missing.length === 0) {
+    return { bucket: "QUDRAT", reason: "all_4_ok" };
+  }
+
+  return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
+}
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
@@ -80,7 +142,21 @@ app.post("/webhook", async (req, res) => {
     // ✅ نشتغل فقط على كروب الـIndex
     if (chatId !== INBOX_CHAT_ID) return;
 
-    const decision = classifyJob(text);
+    const decision = decideStrict(text);
+const targetChatId = decision.bucket === "QUDRAT"
+  ? QUDRAT_CHAT_ID
+  : REVIEW_CHAT_ID;
+
+console.log("decision:", decision);
+
+await tg("sendMessage", {
+  chat_id: targetChatId,
+  text: `📌 Auto Sort: ${decision.bucket}
+🧩 Reason: ${decision.reason}
+
+${text}`
+});
+    
     const targetChatId = decision.bucket === "QUDRAT" ? QUDRAT_CHAT_ID : REVIEW_CHAT_ID;
 
     console.log("decision:", decision, "target:", targetChatId);
