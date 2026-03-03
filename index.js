@@ -32,9 +32,7 @@ async function tg(method, payload) {
 }
 
 // ===== Helpers =====
-function normalizeText(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
+
 
 // تصنيف بسيط مؤقت (بعدها نطوره)
 // - إذا بيه ايميل/واتساب/هاتف => نعتبره واضح ويروح QUDRAT
