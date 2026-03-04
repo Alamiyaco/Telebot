@@ -193,7 +193,7 @@ const rawTitle =
   extractJobTitle(text) ||
   "";
 
-const title = cleanTitle(rawTitle);
+const title = smartTitle(text);
 
 const companyRaw =
   extractCompany(text) ||
