@@ -153,6 +153,7 @@ app.post("/webhook", async (req, res) => {
     console.log("decision:", decision, "target:", targetChatId);
 
     // ✅ ارسال مرة واحدة فقط
+// ✅ ارسال مرة واحدة فقط
 let finalText = text;
 
 if (decision.bucket === "QUDRAT") {
@@ -184,7 +185,7 @@ if (decision.bucket === "QUDRAT") {
 
   const contact = contactLine || contactFallback;
 
-finalText = `📌 فرصة عمل
+  finalText = `📌 فرصة عمل
 
 المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
@@ -196,11 +197,13 @@ finalText = `📌 فرصة عمل
 التفاصيل:
 ${text}
 `;
+}
 
+// ✅ إرسال فعلي (مرة واحدة) لكل الحالات
 await tg("sendMessage", {
   chat_id: targetChatId,
   text: finalText,
-});;
+});
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
