@@ -173,7 +173,7 @@ if (decision.bucket === "QUDRAT") {
 
   const contactFallback =
     (text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]) ||
-    (text.match(/\+?\d[\d\s\-]{7,}\d/)?[0]) ||
+    (text.match(/\+?\d[\d\s\-]{7,}\d/)?.[0]) ||
     (text.match(/https?:\/\/\S+|t\.me\/\S+/i)?.[0]) ||
     "غير مذكور";
 
