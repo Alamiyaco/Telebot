@@ -137,48 +137,73 @@ function firstLine(text = "") {
   return normalizeText(text).split("\n")[0] || normalizeText(text);
 }
 
-function smartTitle(text = "") {
-  const lines = (text || "").split("\n").map(s => s.trim()).filter(Boolean);
-  const t = normalizeText(text);
+function smartTitleFromText(raw = "") {
+  // 1) إذا مذكور صراحة داخل قوس
+  let m = raw.match(/العنوان\s*الوظيفي\s*\(([^)]+)\)/i);
+  if (m) return cleanJobTitle(m[1]);
 
-  // 1) أفضل حالة: سطر صريح
-  for (const line of lines.slice(0, 12)) {
-    const m = line.match(/(?:المسمى\s*الوظيفي|الوظيفة|Job\s*Title)\s*[:：\-–—]\s*(.+)/i);
-    if (m && m[1]) return cleanupJobTitle(m[1]);
-  }
+  // 2) "بصفة وظيفية محاسب"
+  m = raw.match(/بصفة\s+وظيفية\s+([^\n\r]{2,60})/i);
+  if (m) return cleanJobTitle(m[1]);
 
-  // 2) "مطلوب/مطلوبة/نبحث عن" لكن نأخذ ما بعد "موظف/موظفة" إذا موجود
-  for (const line of lines.slice(0, 12)) {
-    const m = line.match(/(?:مطلوب|مطلوبة|نبحث عن)\s+(.+)/i);
-    if (m && m[1]) return cleanupJobTitle(m[1]);
-  }
+  // 3) "بحاجة إلى ... ترويج" أو "بحاجتها الى ... خدمة عملاء"
+  m = raw.match(/(?:بحاجة\s+إلى|بحاجتها\s+الى)\s+(?:موظف(?:ين)?|موظفة|موظفات)?\s*([^\n\r]{2,80})/i);
+  if (m) return cleanJobTitle(m[1]);
 
-  // 3) fallback: ابحث داخل النص كله عن كلمات وظائف شائعة (أقوى من السطر الأول)
+  // 4) التقط كلمات وظائف قوية داخل النص (أفضل من "موظفين/موظفات")
   const roles = [
-    "خدمة عملاء","مندوب مبيعات","مبيعات","محاسب","محاسبة","موارد بشرية","HR",
-    "سائق","كاشير","مصمم","مهندس","مطور","مبرمج","سكرتير","أمين مخزن","مخزن",
-    "منسق","مدير","مشرف","استقبال"
+    "محاسب","مندوب","مندوبين","مندوبات","مندوب مبيعات","خدمة عملاء","ترويج",
+    "منسق بضائع","كاشير","عامل","استقبال","سائق","HR","موارد بشرية"
   ];
-  const found = roles.find(r => new RegExp(`\\b${r}\\b`, "i").test(t));
-  if (found) return found;
+
+  for (const r of roles) {
+    if (new RegExp(`\\b${r}\\b`, "i").test(raw)) {
+      // حالات "مندوبين او مندوبات" => نرجع "مندوب مبيعات" كعنوان عام
+      if (/مندوبين|مندوبات/i.test(r)) return "مندوب مبيعات";
+      return r;
+    }
+  }
+
+  // 5) إذا إعلان فيه قائمة وظائف (مثل وفر: منسق/عامل/كاشير)
+  const listMatches = [];
+  const lines = raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  for (const line of lines) {
+    // التقط "منسق بضائع راتب 450" => "منسق بضائع"
+    const mm = line.match(/^([^\d]{2,40})\s+(?:راتب|الراتب)\s*\d+/i);
+    if (mm) listMatches.push(cleanJobTitle(mm[1]));
+  }
+  if (listMatches.length) return [...new Set(listMatches)].join(" / ");
 
   return "غير مذكور";
 }
 
-function cleanupJobTitle(raw = "") {
-  let x = normalizeText(raw);
+function cleanJobTitle(s = "") {
+  let x = normalizeText(s);
 
-  // شيل كلمات الجنس/الجمع
-  x = x.replace(/\b(ذكور|إناث|للجنسين|موظفين|موظفات|موظف|موظفة|كادر|كوادر)\b/gi, "").trim();
+  // شيل ايموجي وجنس/جمع
+  x = x.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
+  x = x.replace(/\b(موظفين|موظفات|موظف|موظفة|ذكور|إناث|للجنسين)\b/gi, "").trim();
 
-  // إذا بقى النص طويل، قص عند بداية التفاصيل
-  x = x.replace(/\s+(?:تعلن|شركة|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط)\b.*$/i, "");
-
-  // قص بعد الفواصل الطويلة
+  // قص عند بداية تفاصيل
+  x = x.replace(/\s+(?:تعلن|شركة|مصنع|معرض|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط)\b.*$/i, "");
   x = x.replace(/[|،\-–—].*$/i, "").trim();
 
   return x || "غير مذكور";
 }
+
+function smartSalary(raw = "") {
+  const m = raw.match(/(?:الراتب|راتب)\s*[:：\-–—]?\s*([^\n\r]{2,80})/i);
+  return m ? normalizeText(m[1]) : "غير مذكور";
+}
+
+function smartContact(raw = "") {
+  const phones = raw.match(/\+?\d[\d\s\-]{7,}\d/g) || [];
+  const emails = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig) || [];
+
+  const list = [...new Set([...phones, ...emails])].map(x => normalizeText(x));
+  return list.length ? list.join(" | ") : "غير مذكور";
+}
+
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
@@ -192,8 +217,10 @@ app.post("/webhook", async (req, res) => {
     }
 
     const chatId = msg.chat?.id;
-    const text = normalizeText(msg.text || msg.caption || "");
-    if (!text) return;
+const rawText = (msg.text || msg.caption || "").trim();
+if (!rawText) return;
+
+const text = normalizeText(rawText); // فقط للتحليل/الفلترة;
 
     console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID });
     console.log("✅ /webhook HIT", new Date().toISOString());
@@ -214,39 +241,12 @@ app.post("/webhook", async (req, res) => {
 let finalText = text;
 
 if (decision.bucket === "QUDRAT") {
-const rawTitle =
-  (normalizeText(text).match(/(?:المسمى\s*الوظيفي|المسمى|الوظيفة)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
-  (normalizeText(text).match(/(?:مطلوب|مطلوبة|نبحث عن)\s+([^\n]{3,120})/i)?.[1]?.trim()) ||
-  extractJobTitle(text) ||
-  "";
+  const title = smartTitleFromText(rawText);
+  const company = (extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim();
+  const salary = smartSalary(rawText);
+  const contact = smartContact(rawText);
 
-const title = smartTitle(text);
-
-const companyRaw =
-  extractCompany(text) ||
-  (normalizeText(text).match(/(?:اسم الشركة|الشركة|جهة العمل)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
-  "";
-
-const company = stripEmojis(companyRaw).replace(/[|،\-–—].*$/i, "").trim() || "غير مذكور";;
-
-  const salary =
-    (normalizeText(text).match(/(?:الراتب|راتب|Salary|أجر)\s*[:：\-–—]?\s*([^\n]{2,120})/i)?.[1]?.trim()) ||
-    "غير مذكور";
-
-  const contactLine =
-    (normalizeText(text).match(/(?:طريقة التواصل|للتواصل|التواصل)\s*[:：\-–—]?\s*([^\n]{5,160})/i)?.[1]?.trim()) ||
-    (normalizeText(text).match(/(?:واتساب|WhatsApp)\s*[:：\-–—]?\s*([^\n]{5,160})/i)?.[1]?.trim()) ||
-    null;
-
-  const contactFallback =
-    (text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]) ||
-    (text.match(/\+?\d[\d\s\-]{7,}\d/)?.[0]) ||
-    (text.match(/https?:\/\/\S+|t\.me\/\S+/i)?.[0]) ||
-    "غير مذكور";
-
-  const contact = contactLine || contactFallback;
-
-finalText = `📌 فرصة عمل
+  finalText = `📌 فرصة عمل
 
 المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
@@ -255,7 +255,11 @@ finalText = `📌 فرصة عمل
 
 ──────────────
 
-${text}`;
+التفاصيل:
+${rawText}`;
+} else {
+  // REVIEW يبقى مثل ما تحب (نفس النص بدون تنسيق)
+  finalText = rawText;
 }
 
 // ✅ إرسال فعلي (مرة واحدة) لكل الحالات
