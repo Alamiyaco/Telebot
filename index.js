@@ -121,7 +121,17 @@ function decideStrict(text) {
 
   return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
 }
+function stripEmojis(s = "") {
+  return s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
+}
 
+function cleanTitle(raw = "") {
+  let t = stripEmojis(normalizeText(raw));
+  t = t.replace(/^(مطلوب|مطلوبة|فرصة عمل|وظيفة شاغرة|نبحث عن|تعلن)\s*/i, "");
+  t = t.replace(/(في|لدى|ضمن|بـ|على)\s+.*$/i, ""); // يوقف عند أول امتداد طويل
+  t = t.replace(/[|،\-–—].*$/i, "");              // يقص بعد الفواصل
+  return t.trim() || "غير مذكور";
+}
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
@@ -157,16 +167,20 @@ app.post("/webhook", async (req, res) => {
 let finalText = text;
 
 if (decision.bucket === "QUDRAT") {
-  const title =
-    extractJobTitle(text) ||
-    (normalizeText(text).match(/(?:المسمى\s*الوظيفي|المسمى|الوظيفة)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
-    (normalizeText(text).match(/(?:مطلوب|مطلوبة|نبحث عن|Hiring)\s*[:：\-–—]?\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
-    "غير مذكور";
+const rawTitle =
+  (normalizeText(text).match(/(?:المسمى\s*الوظيفي|المسمى|الوظيفة)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
+  (normalizeText(text).match(/(?:مطلوب|مطلوبة|نبحث عن)\s+([^\n]{3,120})/i)?.[1]?.trim()) ||
+  extractJobTitle(text) ||
+  "";
 
-  const company =
-    extractCompany(text) ||
-    (normalizeText(text).match(/(?:الشركة|جهة العمل)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
-    "غير مذكور";
+const title = cleanTitle(rawTitle);
+
+const companyRaw =
+  extractCompany(text) ||
+  (normalizeText(text).match(/(?:اسم الشركة|الشركة|جهة العمل)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
+  "";
+
+const company = stripEmojis(companyRaw).replace(/[|،\-–—].*$/i, "").trim() || "غير مذكور";;
 
   const salary =
     (normalizeText(text).match(/(?:الراتب|راتب|Salary|أجر)\s*[:：\-–—]?\s*([^\n]{2,120})/i)?.[1]?.trim()) ||
@@ -185,7 +199,7 @@ if (decision.bucket === "QUDRAT") {
 
   const contact = contactLine || contactFallback;
 
-  finalText = `📌 فرصة عمل
+finalText = `📌 فرصة عمل
 
 المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
@@ -194,9 +208,7 @@ if (decision.bucket === "QUDRAT") {
 
 ──────────────
 
-التفاصيل:
-${text}
-`;
+${text}`;
 }
 
 // ✅ إرسال فعلي (مرة واحدة) لكل الحالات
