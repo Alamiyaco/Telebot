@@ -138,43 +138,114 @@ function firstLine(text = "") {
 }
 
 function smartTitleFromText(raw = "") {
-  // 1) إذا مذكور صراحة داخل قوس
-  let m = raw.match(/العنوان\s*الوظيفي\s*\(([^)]+)\)/i);
-  if (m) return cleanJobTitle(m[1]);
+  const clean = (s) => cleanJobTitle(s);
 
-  // 2) "بصفة وظيفية محاسب"
-  m = raw.match(/بصفة\s+وظيفية\s+([^\n\r]{2,60})/i);
-  if (m) return cleanJobTitle(m[1]);
+  // نظف نصوص الواتساب/التاريخ وغيرها
+  const r = (raw || "")
+    .replace(/\[\d{1,2}\/\d{1,2}\/\d{4}[^\]]*\]/g, "") // [3/2/2026 13:44]
+    .replace(/Jobs4us\|?/gi, "")
+    .trim();
 
-  // 3) "بحاجة إلى ... ترويج" أو "بحاجتها الى ... خدمة عملاء"
-  m = raw.match(/(?:بحاجة\s+إلى|بحاجتها\s+الى)\s+(?:موظف(?:ين)?|موظفة|موظفات)?\s*([^\n\r]{2,80})/i);
-  if (m) return cleanJobTitle(m[1]);
+  const lines = r.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
 
-  // 4) التقط كلمات وظائف قوية داخل النص (أفضل من "موظفين/موظفات")
-  const roles = [
-    "محاسب","مندوب","مندوبين","مندوبات","مندوب مبيعات","خدمة عملاء","ترويج",
-    "منسق بضائع","كاشير","عامل","استقبال","سائق","HR","موارد بشرية"
-  ];
-
-  for (const r of roles) {
-    if (new RegExp(`\\b${r}\\b`, "i").test(raw)) {
-      // حالات "مندوبين او مندوبات" => نرجع "مندوب مبيعات" كعنوان عام
-      if (/مندوبين|مندوبات/i.test(r)) return "مندوب مبيعات";
-      return r;
+  // 0) عنوان داخل أول سطر بعد ":" مثل "لنا: مطلوب ... – بغداد | Field Sales Representative"
+  {
+    const first = lines[0] || "";
+    const m = first.match(/:\s*(.+)$/);
+    if (m && m[1]) {
+      const candidate = m[1]
+        .replace(/–.*$/g, "")     // قص بعد –
+        .replace(/\|.*$/g, "")    // قص بعد |
+        .trim();
+      const t = clean(candidate);
+      if (isGoodTitle(t)) return t;
     }
   }
 
-  // 5) إذا إعلان فيه قائمة وظائف (مثل وفر: منسق/عامل/كاشير)
-  const listMatches = [];
-  const lines = raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-  for (const line of lines) {
-    // التقط "منسق بضائع راتب 450" => "منسق بضائع"
-    const mm = line.match(/^([^\d]{2,40})\s+(?:راتب|الراتب)\s*\d+/i);
-    if (mm) listMatches.push(cleanJobTitle(mm[1]));
+  // 1) العنوان الوظيفي داخل قوس "(محاسب)" أو "(كاشير استقبال كابتن)"
+  {
+    const m = r.match(/العنوان\s*الوظيفي\s*\(([^)]+)\)/i) || r.match(/\(([^)]+)\)/);
+    if (m && m[1]) {
+      const t = clean(m[1].replace(/[،,]/g, " / ").replace(/\s+/g, " "));
+      if (isGoodTitle(t)) return t;
+    }
   }
-  if (listMatches.length) return [...new Set(listMatches)].join(" / ");
+
+  // 2) "مطلوب XXX" (ويكون XXX هو المسمى مباشرة)
+  for (const line of lines.slice(0, 12)) {
+    const m = line.match(/^(?:🚹|🚺|🛑|🔥|📌|\s)*\s*(?:مطلوب|مطلوبة|نبحث عن)\s+(.+)$/i);
+    if (m && m[1]) {
+      const t = clean(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
+  }
+
+  // 3) "بصفة وظيفية XXX"
+  {
+    const m = r.match(/بصفة\s+وظيفية\s+([^\n\r]{2,80})/i);
+    if (m && m[1]) {
+      const t = clean(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
+  }
+
+  // 4) "عن حاجته/بحاجتها إلى XXX"
+  {
+    const m = r.match(/(?:عن حاجت(?:ه|ها)\s*إلى|بحاجت(?:ه|ها)\s*إلى)\s+(.+)/i);
+    if (m && m[1]) {
+      const t = clean(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
+  }
+
+  // 5) إذا يوجد سطر عنوان مستقل قصير (مثل: "مهندس تنفيذ جسور" أو "مطلوب قصّاب")
+  for (const line of lines.slice(0, 10)) {
+    // تجاهل أسطر الشركة/الموقع/الراتب
+    if (/(شركة|يعلن|تعلن|الموقع|العنوان|الراتب|الدوام|التقديم|للتواصل|واتساب|CV|ايميل)/i.test(line)) continue;
+
+    const t = clean(line);
+    if (isGoodTitle(t) && t.length <= 40) return t;
+  }
+
+  // 6) قائمة وظائف داخل الإعلان (منسق بضائع/عامل/كاشير)
+  {
+    const picks = [];
+    for (const line of lines) {
+      const mm = line.match(/^([^\d]{2,40})\s+(?:راتب|الراتب)\s*\d+/i);
+      if (mm && mm[1]) {
+        const t = clean(mm[1]);
+        if (isGoodTitle(t)) picks.push(t);
+      }
+    }
+    if (picks.length) return [...new Set(picks)].join(" / ");
+  }
+
+  // 7) fallback: قاموس مسميات شائع (عربي + انكليزي)
+  const roles = [
+    "Field Sales Representative","Sales Representative","Account Manager","Customer Service",
+    "مندوب مبيعات ميداني","مندوب مبيعات","محاسب","حسابات","كاشير","استقبال","كابتن",
+    "سوشيال ميديا","كول سنتر","مدير صفحات","تسويق محتوى","مهندس تنفيذ جسور","مهندس مدني","قصّاب",
+    "منسق بضائع","عامل","بريسيل"
+  ];
+
+  for (const rr of roles) {
+    if (new RegExp(rr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(r)) {
+      // توحيد بعض الكلمات
+      if (/حسابات/i.test(rr)) return "حسابات";
+      return rr;
+    }
+  }
 
   return "غير مذكور";
+}
+
+function isGoodTitle(t = "") {
+  if (!t) return false;
+  // ممنوع يكون بس جنس/موظف عام
+  if (/^(?:غير مذكور|موظف|موظفة|موظفين|موظفات|ذكور|إناث|للجنسين)$/i.test(t)) return false;
+  // ممنوع يكون جملة إعلان
+  if (/(تعلن|يعلن|شركة|مصنع|مطعم|معرض|عن توفر|فرصة عمل)/i.test(t) && t.length > 35) return false;
+  return true;
 }
 
 function cleanJobTitle(s = "") {
