@@ -151,17 +151,36 @@ app.post("/webhook", async (req, res) => {
 let finalText = text;
 
 if (decision.bucket === "QUDRAT") {
-  const title = extractJobTitle(text) || "غير مذكور";
-  const company = extractCompany(text) || "غير مذكور";
+  const title =
+    extractJobTitle(text) ||
+    (normalizeText(text).match(/(?:المسمى\s*الوظيفي|المسمى|الوظيفة)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
+    (normalizeText(text).match(/(?:مطلوب|مطلوبة|نبحث عن|Hiring)\s*[:：\-–—]?\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
+    "غير مذكور";
 
-  const salaryMatch = text.match(/(\d{3,}[.,]?\d*\s*(?:دينار|IQD)?)/i);
-  const salary = salaryMatch ? salaryMatch[1] : "غير مذكور";
+  const company =
+    extractCompany(text) ||
+    (normalizeText(text).match(/(?:الشركة|جهة العمل)\s*[:：\-–—]\s*([^\n]{3,120})/i)?.[1]?.trim()) ||
+    "غير مذكور";
 
-  const contactMatch = text.match(/(\+?\d[\d\s\-]{7,}\d|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|https?:\/\/\S+|t\.me\/\S+)/i);
-  const contact = contactMatch ? contactMatch[1] : "غير مذكور";
+  const salary =
+    (normalizeText(text).match(/(?:الراتب|راتب|Salary|أجر)\s*[:：\-–—]?\s*([^\n]{2,120})/i)?.[1]?.trim()) ||
+    "غير مذكور";
+
+  const contactLine =
+    (normalizeText(text).match(/(?:طريقة التواصل|للتواصل|التواصل)\s*[:：\-–—]?\s*([^\n]{5,160})/i)?.[1]?.trim()) ||
+    (normalizeText(text).match(/(?:واتساب|WhatsApp)\s*[:：\-–—]?\s*([^\n]{5,160})/i)?.[1]?.trim()) ||
+    null;
+
+  const contactFallback =
+    (text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]) ||
+    (text.match(/\+?\d[\d\s\-]{7,}\d/)?[0]) ||
+    (text.match(/https?:\/\/\S+|t\.me\/\S+/i)?.[0]) ||
+    "غير مذكور";
+
+  const contact = contactLine || contactFallback;
 
   finalText = `المسمى الوظيفي: ${title}
-الشركة: ${company}
+اسم الشركة: ${company}
 الراتب: ${salary}
 طريقة التواصل: ${contact}
 
