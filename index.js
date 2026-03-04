@@ -100,7 +100,12 @@ function hasSalary(text) {
 
 function decideStrict(text) {
   const company = extractCompany(text);
-  const title   = extractJobTitle(text);
+  const title =
+  (normalizeText(text).match(/مطلوب\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
+  (normalizeText(text).match(/مطلوبة\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
+  (normalizeText(text).match(/نبحث عن\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
+  extractJobTitle(text) ||
+  "غير مذكور";
   const contact = hasContact(text);
   const salary  = hasSalary(text);
 
@@ -179,14 +184,18 @@ if (decision.bucket === "QUDRAT") {
 
   const contact = contactLine || contactFallback;
 
-  finalText = `المسمى الوظيفي: ${title}
+finalText = `📌 فرصة عمل
+
+المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
 الراتب: ${salary}
 طريقة التواصل: ${contact}
 
+──────────────
+
 التفاصيل:
-${text}`;
-}
+${text}
+`;
 
 await tg("sendMessage", {
   chat_id: targetChatId,
