@@ -132,6 +132,26 @@ function cleanTitle(raw = "") {
   t = t.replace(/[|،\-–—].*$/i, "");              // يقص بعد الفواصل
   return t.trim() || "غير مذكور";
 }
+
+function firstLine(text = "") {
+  return normalizeText(text).split("\n")[0] || normalizeText(text);
+}
+
+function smartTitle(text = "") {
+  const l = firstLine(text);
+
+  // يلتقط "مطلوب/مطلوبة/نبحث عن" من أول سطر فقط ويقص قبل "تعلن/في/لدى/ضمن/..." أو أي فاصل
+  const m = l.match(/(?:مطلوب|مطلوبة|نبحث عن)\s+(.+)/i);
+  let t = (m ? m[1] : (l.match(/(?:المسمى\s*الوظيفي|المسمى|الوظيفة)\s*[:：\-–—]\s*(.+)/i)?.[1] || l)).trim();
+
+  t = t
+    .replace(/^(تعلن|اعلان|إعلان)\s+/i, "")
+    .replace(/\s+(تعلن|في|لدى|ضمن|بـ|على)\s+.*$/i, "")
+    .replace(/[|،\-–—].*$/i, "")
+    .trim();
+
+  return t || "غير مذكور";
+}
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
