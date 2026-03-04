@@ -148,10 +148,31 @@ app.post("/webhook", async (req, res) => {
     console.log("decision:", decision, "target:", targetChatId);
 
     // ✅ ارسال مرة واحدة فقط
-    await tg("sendMessage", {
-      chat_id: targetChatId,
-      text: formatForSend(text, decision),
-    });
+let finalText = text;
+
+if (decision.bucket === "QUDRAT") {
+  const title = extractJobTitle(text) || "غير مذكور";
+  const company = extractCompany(text) || "غير مذكور";
+
+  const salaryMatch = text.match(/(\d{3,}[.,]?\d*\s*(?:دينار|IQD)?)/i);
+  const salary = salaryMatch ? salaryMatch[1] : "غير مذكور";
+
+  const contactMatch = text.match(/(\+?\d[\d\s\-]{7,}\d|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|https?:\/\/\S+|t\.me\/\S+)/i);
+  const contact = contactMatch ? contactMatch[1] : "غير مذكور";
+
+  finalText = `المسمى الوظيفي: ${title}
+الشركة: ${company}
+الراتب: ${salary}
+طريقة التواصل: ${contact}
+
+التفاصيل:
+${text}`;
+}
+
+await tg("sendMessage", {
+  chat_id: targetChatId,
+  text: finalText,
+});;
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
