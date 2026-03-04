@@ -33,7 +33,6 @@ async function tg(method, payload) {
 
 // ===== Helpers =====
 
-
 // تصنيف بسيط مؤقت (بعدها نطوره)
 // - إذا بيه ايميل/واتساب/هاتف => نعتبره واضح ويروح QUDRAT
 // - غير واضح => REVIEW
@@ -117,6 +116,7 @@ function decideStrict(text) {
 
   return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
 }
+
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
@@ -141,23 +141,13 @@ app.post("/webhook", async (req, res) => {
     if (chatId !== INBOX_CHAT_ID) return;
 
     const decision = decideStrict(text);
-const targetChatId = decision.bucket === "QUDRAT"
-  ? QUDRAT_CHAT_ID
-  : REVIEW_CHAT_ID;
-
-console.log("decision:", decision);
-
-await tg("sendMessage", {
-  chat_id: targetChatId,
-  text: `📌 Auto Sort: ${decision.bucket}
-🧩 Reason: ${decision.reason}
-
-${text}`
-});
-    
+    const targetChatId = decision.bucket === "QUDRAT"
+      ? QUDRAT_CHAT_ID
+      : REVIEW_CHAT_ID;
 
     console.log("decision:", decision, "target:", targetChatId);
 
+    // ✅ ارسال مرة واحدة فقط
     await tg("sendMessage", {
       chat_id: targetChatId,
       text: formatForSend(text, decision),
