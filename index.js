@@ -2,15 +2,48 @@ import express from "express";
 
 import Database from "better-sqlite3";
 import crypto from "crypto";
-const db = new Database("jobs_v2.db");
+const db = new Database("jobs_v3.db");
+
 db.exec(`
-CREATE TABLE IF NOT EXISTS jobs (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- hash TEXT,
- raw_text TEXT,
- created_at TEXT DEFAULT (datetime('now'))
+CREATE TABLE IF NOT EXISTS ads_raw (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  hash TEXT,
+  raw_text TEXT NOT NULL,
+  source_chat_id TEXT,
+  source_message_id TEXT,
+  ai_output_json TEXT,
+  extract_status TEXT DEFAULT 'pending',
+  created_at TEXT DEFAULT (datetime('now'))
 );
-`);
+
+CREATE TABLE IF NOT EXISTS ads_review (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  raw_ad_id INTEGER,
+  hash TEXT,
+  raw_text TEXT NOT NULL,
+  ai_output_json TEXT,
+  review_reason TEXT,
+  review_status TEXT DEFAULT 'pending',
+  reviewed_at TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS ads_published (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  raw_ad_id INTEGER,
+  hash TEXT,
+  title TEXT,
+  category TEXT,
+  company TEXT,
+  salary TEXT,
+  contact TEXT,
+  raw_text TEXT NOT NULL,
+  qudrat_chat_id TEXT,
+  qudrat_message_id TEXT,
+  website_status TEXT DEFAULT 'pending',
+  published_at TEXT DEFAULT (datetime('now'))
+);
+`);;
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
