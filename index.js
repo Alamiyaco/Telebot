@@ -1,5 +1,17 @@
 import express from "express";
 
+import Database from "better-sqlite3";
+import crypto from "crypto";
+const db = new Database("jobs.db");
+db.exec(`
+CREATE TABLE IF NOT EXISTS jobs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ hash TEXT UNIQUE,
+ raw_text TEXT,
+ created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
