@@ -327,22 +327,22 @@ app.post("/webhook", async (req, res) => {
       .update(rawText)
       .digest("hex");
 
-    const exists = db.prepare(`
-      SELECT id FROM jobs
-      WHERE hash = ?
-        AND created_at >= datetime('now', '-7 days')
-      LIMIT 1
-    `).get(hash);
+const exists = db.prepare(`
+SELECT id FROM ads_raw
+WHERE hash = ?
+AND created_at >= datetime('now', '-7 days')
+LIMIT 1
+`).get(hash);
 
     if (exists) {
       console.log("Duplicate ad skipped");
       return;
     }
 
-    db.prepare(`
-    INSERT INTO jobs (hash, raw_text)
-    VALUES (?, ?)
-    `).run(hash, rawText);
+db.prepare(`
+INSERT INTO ads_raw (hash, raw_text, source_chat_id, source_message_id)
+VALUES (?, ?, ?, ?)
+`).run(hash, rawText, chatId, msg.message_id);;
 
     const text = normalizeText(rawText);
 
