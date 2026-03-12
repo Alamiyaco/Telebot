@@ -301,7 +301,27 @@ app.post("/webhook", async (req, res) => {
 
     const chatId = msg.chat?.id;
 const rawText = (msg.text || msg.caption || "").trim();
+
 if (!rawText) return;
+
+const hash = crypto
+  .createHash("sha256")
+  .update(rawText)
+  .digest("hex");
+
+const exists = db.prepare(
+  "SELECT id FROM jobs WHERE hash=?"
+).get(hash);
+
+if (exists) {
+  console.log("Duplicate ad skipped");
+  return;
+}
+
+db.prepare(`
+INSERT INTO jobs (hash, raw_text)
+VALUES (?, ?)
+`).run(hash, rawText);
 
 const text = normalizeText(rawText); // فقط للتحليل/الفلترة;
 
