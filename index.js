@@ -306,9 +306,9 @@ function smartContact(raw = "") {
   return list.length ? list.join(" | ") : "غير مذكور";
 }
 
+
 async function extractWithAI(text) {
   try {
-
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -320,19 +320,17 @@ async function extractWithAI(text) {
         messages: [
           {
             role: "system",
-content: `
+            content: `
 انت نظام متخصص في تحليل إعلانات الوظائف.
 
 المطلوب استخراج المعلومات التالية فقط:
-
-title
-company
-salary
-contact
-category
+- title
+- company
+- salary
+- contact
+- category
 
 قواعد مهمة:
-
 1- المسمى الوظيفي يجب أن يكون وظيفة حقيقية مثل:
 مندوب مبيعات
 محاسب
@@ -351,22 +349,10 @@ WhatsApp
 كتابة
 
 3- إذا كان الإعلان يحتوي عدة وظائف اختر أول وظيفة مذكورة.
+4- إذا لم تجد مسمى وظيفي واضح ضع "غير مذكور".
+5- إذا لم تجد أي قيمة لأي حقل ضع "غير مذكور".
 
-4- إذا لم تجد مسمى وظيفي واضح ضع:
-"غير مذكور"
-
-ارجع النتيجة بصيغة JSON فقط.
-`
-
-المطلوب:
-
-title
-company
-salary
-contact
-category
-
-إذا لم تجد قيمة ضع "غير مذكور".
+أرجع النتيجة بصيغة JSON فقط وبدون أي شرح إضافي.
 `
           },
           {
@@ -379,11 +365,9 @@ category
     });
 
     const data = await response.json();
-
     const content = data?.choices?.[0]?.message?.content || "{}";
 
     return JSON.parse(content);
-
   } catch (err) {
     console.log("AI extract error:", err);
     return null;
@@ -503,12 +487,6 @@ db.prepare(`
     let finalText = text;
 
     if (decision.bucket === "QUDRAT") {
-const title = cleanedAI?.title && cleanedAI.title !== "غير مذكور"
-if (/الوظائف التالية|فرصة عمل|وظيفة/i.test(title)) {
-  title = smartTitleFromText(rawText);
-}
-  ? cleanedAI.title
-  : smartTitleFromText(rawText);
 
 const company = cleanedAI?.company && cleanedAI.company !== "غير مذكور"
   ? cleanedAI.company
