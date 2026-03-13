@@ -547,32 +547,32 @@ app.post("/webhook", async (req, res) => {
 
     let finalText = text;
 
-    if (decision.bucket === "QUDRAT") {
-      let title =
-        cleanedAI?.title && cleanedAI.title !== "غير مذكور"
-          ? cleanJobTitle(cleanedAI.title)
-          : smartTitleFromText(rawText);
+if (decision.bucket === "QUDRAT") {
+  let title =
+    cleanedAI?.title && cleanedAI.title !== "غير مذكور"
+      ? cleanJobTitle(cleanedAI.title)
+      : smartTitleFromText(rawText);
 
-      if (!isGoodTitle(title)) {
-        title = smartTitleFromText(rawText);
-      }
+  if (!isGoodTitle(title)) {
+    title = smartTitleFromText(rawText);
+  }
 
-      const company =
-        cleanedAI?.company && cleanedAI.company !== "غير مذكور"
-          ? normalizeInline(cleanedAI.company)
-          : ((extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim());
+  const company =
+    cleanedAI?.company && cleanedAI.company !== "غير مذكور"
+      ? normalizeInline(cleanedAI.company)
+      : ((extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim());
 
-      const salary =
-        cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
-          ? normalizeInline(cleanedAI.salary)
-          : smartSalary(rawText);
+  const salary =
+    cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
+      ? normalizeInline(cleanedAI.salary)
+      : smartSalary(rawText);
 
-      const contact =
-        cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
-          ? normalizeInline(cleanedAI.contact)
-          : smartContact(rawText);
+  const contact =
+    cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
+      ? normalizeInline(cleanedAI.contact)
+      : smartContact(rawText);
 
-      finalText = `📌 فرصة عمل
+  finalText = `📌 فرصة عمل
 
 المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
@@ -583,10 +583,17 @@ app.post("/webhook", async (req, res) => {
 
 التفاصيل:
 ${rawText}`;
-    } else {
-      finalText = rawText;
-    }
+} else {
+  finalText = `📋 إعلان بحاجة مراجعة
 
+سبب التحويل إلى كروب المراجعة:
+${decision.reason}
+
+──────────────
+
+نص الإعلان:
+${rawText}`;
+}
     const tgRes = await tg("sendMessage", {
       chat_id: targetChatId,
       text: finalText,
