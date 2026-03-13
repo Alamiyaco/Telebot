@@ -306,6 +306,57 @@ function smartContact(raw = "") {
   return list.length ? list.join(" | ") : "غير مذكور";
 }
 
+async function extractWithAI(text) {
+  try {
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        messages: [
+          {
+            role: "system",
+            content: `
+انت نظام يقوم باستخراج معلومات الوظائف من الإعلانات.
+
+ارجع البيانات فقط بصيغة JSON.
+
+المطلوب:
+
+title
+company
+salary
+contact
+category
+
+إذا لم تجد قيمة ضع "غير مذكور".
+`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ],
+        temperature: 0.1
+      })
+    });
+
+    const data = await response.json();
+
+    const content = data?.choices?.[0]?.message?.content || "{}";
+
+    return JSON.parse(content);
+
+  } catch (err) {
+    console.log("AI extract error:", err);
+    return null;
+  }
+}
+
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
@@ -355,7 +406,8 @@ db.prepare(`
     console.log("✅ msg:", { chatId, preview: text.slice(0, 120) });
 
     if (chatId !== INBOX_CHAT_ID) return;
-
+    const aiData = await extractWithAI(rawText);
+    console.log("AI DATA:", aiData);
     const decision = decideStrict(text);
     const targetChatId = decision.bucket === "QUDRAT"
       ? QUDRAT_CHAT_ID
