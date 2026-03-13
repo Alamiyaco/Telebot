@@ -284,13 +284,13 @@ function smartTitleFromText(raw = "") {
   const clean = (s) => cleanJobTitle(s);
 
   for (const line of lines.slice(0, 10)) {
-    let m = line.match(/^(?:📌|🔥|🚹|🚺|🛑|⬆️|⬇️|\s)*مطلوب(?:ة)?\s+(.+)$/i);
+    let m = line.match(/^(?:مطلوب|مطلوبة)\s+(.+)$/i);
     if (m && m[1]) {
       const t = clean(m[1]);
       if (isGoodTitle(t)) return t;
     }
 
-    m = line.match(/^(?:📌|🔥|🚹|🚺|🛑|⬆️|⬇️|\s)*نبحث عن\s+(.+)$/i);
+    m = line.match(/^نبحث عن\s+(.+)$/i);
     if (m && m[1]) {
       const t = clean(m[1]);
       if (isGoodTitle(t)) return t;
