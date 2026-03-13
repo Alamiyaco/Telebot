@@ -53,7 +53,8 @@ const BOT_TOKEN = (process.env.BOT_TOKEN || "").trim();
 const INBOX_CHAT_ID = Number(process.env.INBOX_CHAT_ID || 0);
 const REVIEW_CHAT_ID = Number(process.env.REVIEW_CHAT_ID || 0);
 const QUDRAT_CHAT_ID = Number(process.env.QUDRAT_CHAT_ID || 0);
-
+const OPENROUTER_API_KEY = (process.env.OPENROUTER_API_KEY || "").trim();
+const MODEL_NAME = (process.env.MODEL_NAME || "deepseek/deepseek-chat-v3-0324:free").trim();
 function mustEnv(name, val) {
   if (!val) throw new Error(`Missing env var: ${name}`);
 }
