@@ -320,10 +320,43 @@ async function extractWithAI(text) {
         messages: [
           {
             role: "system",
-            content: `
-انت نظام يقوم باستخراج معلومات الوظائف من الإعلانات.
+content: `
+انت نظام متخصص في تحليل إعلانات الوظائف.
 
-ارجع البيانات فقط بصيغة JSON.
+المطلوب استخراج المعلومات التالية فقط:
+
+title
+company
+salary
+contact
+category
+
+قواعد مهمة:
+
+1- المسمى الوظيفي يجب أن يكون وظيفة حقيقية مثل:
+مندوب مبيعات
+محاسب
+موظف استقبال
+فني صيانة
+موظفة مبيعات
+
+2- لا تعتبر الكلمات التالية مسمى وظيفي:
+الوظائف التالية
+فرصة عمل
+وظيفة
+مطلوب
+WhatsApp
+واتساب
+تحدث
+كتابة
+
+3- إذا كان الإعلان يحتوي عدة وظائف اختر أول وظيفة مذكورة.
+
+4- إذا لم تجد مسمى وظيفي واضح ضع:
+"غير مذكور"
+
+ارجع النتيجة بصيغة JSON فقط.
+`
 
 المطلوب:
 
@@ -471,6 +504,9 @@ db.prepare(`
 
     if (decision.bucket === "QUDRAT") {
 const title = cleanedAI?.title && cleanedAI.title !== "غير مذكور"
+if (/الوظائف التالية|فرصة عمل|وظيفة/i.test(title)) {
+  title = smartTitleFromText(rawText);
+}
   ? cleanedAI.title
   : smartTitleFromText(rawText);
 
