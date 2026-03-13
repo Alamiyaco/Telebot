@@ -175,15 +175,17 @@ function hasSalary(text) {
 }
 
 function decideStrict(text) {
-  const company = extractCompany(text);
-  const rawTitle =
+  const company = extractCompanyAdvanced(text);
+  const titles = extractMultipleJobTitles(text);
+
+  const fallbackTitle =
     extractJobTitle(text) ||
     (normalizeText(text).match(/مطلوب\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
     (normalizeText(text).match(/مطلوبة\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
     (normalizeText(text).match(/نبحث عن\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
     "غير مذكور";
 
-  const title = cleanJobTitle(rawTitle);
+  const title = titles[0] || cleanJobTitle(fallbackTitle);
   const contact = hasContact(text);
   const salary = hasSalary(text);
 
@@ -194,10 +196,14 @@ function decideStrict(text) {
   if (!salary) missing.push("salary");
 
   if (missing.length === 0) {
-    return { bucket: "QUDRAT", reason: "all_4_ok" };
+    return { bucket: "QUDRAT", reason: "all_4_ok", titles };
   }
 
-  return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
+  return {
+    bucket: "REVIEW",
+    reason: "missing: " + missing.join(", "),
+    titles
+  };
 }
 
 function stripEmojis(s = "") {
@@ -267,6 +273,9 @@ function cleanJobTitle(s = "") {
 }
 
 function smartTitleFromText(raw = "") {
+  const many = extractMultipleJobTitles(raw);
+  if (many.length) return many[0];
+
   const lines = normalizeText(raw)
     .split("\n")
     .map(x => x.trim())
@@ -293,6 +302,9 @@ function smartTitleFromText(raw = "") {
       if (isGoodTitle(t)) return t;
     }
   }
+
+  return "غير مذكور";
+}
 
   const roles = [
     "مروجة مبيعات",
@@ -466,7 +478,7 @@ function cleanAIResult(aiData, rawText = "") {
     /(واتساب|whatsapp|للتواصل|الاتصال|الرقم|ايميل|email|\d{7,})/i.test(company) ||
     company.length > 60
   ) {
-    company = extractCompany(rawText) || "غير مذكور";
+      company = extractCompanyAdvanced(rawText) || extractCompany(rawText) || "غير مذكور";
   }
 
   if (!contact || contact === "غير مذكور") {
@@ -548,19 +560,26 @@ app.post("/webhook", async (req, res) => {
     let finalText = text;
 
 if (decision.bucket === "QUDRAT") {
-  let title =
+  const titlesFromText = extractMultipleJobTitles(rawText);
+
+  let aiTitle =
     cleanedAI?.title && cleanedAI.title !== "غير مذكور"
       ? cleanJobTitle(cleanedAI.title)
-      : smartTitleFromText(rawText);
+      : "غير مذكور";
 
-  if (!isGoodTitle(title)) {
-    title = smartTitleFromText(rawText);
-  }
+  if (!isGoodTitle(aiTitle)) aiTitle = "غير مذكور";
+
+  const titles = uniqueNonEmpty([
+    ...titlesFromText,
+    ...(aiTitle !== "غير مذكور" ? [aiTitle] : [])
+  ]).filter(isGoodTitle);
 
   const company =
     cleanedAI?.company && cleanedAI.company !== "غير مذكور"
       ? normalizeInline(cleanedAI.company)
-      : ((extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim());
+      : ((extractCompanyAdvanced(rawText) || extractCompany(rawText) || "غير مذكور")
+          .replace(/[|،\-–—].*$/i, "")
+          .trim());
 
   const salary =
     cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
@@ -572,7 +591,10 @@ if (decision.bucket === "QUDRAT") {
       ? normalizeInline(cleanedAI.contact)
       : smartContact(rawText);
 
-  finalText = `📌 فرصة عمل
+  const finalTitles = titles.length ? titles : [smartTitleFromText(rawText)];
+
+  for (const title of finalTitles) {
+    finalText = `📌 فرصة عمل
 
 المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
@@ -583,24 +605,32 @@ if (decision.bucket === "QUDRAT") {
 
 التفاصيل:
 ${rawText}`;
+
+    const tgRes = await tg("sendMessage", {
+      chat_id: QUDRAT_CHAT_ID,
+      text: finalText,
+    });
+
+    console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
+  }
 } else {
   finalText = `📋 إعلان بحاجة مراجعة
 
 سبب التحويل إلى كروب المراجعة:
-${decision.reason}
+${translateReviewReason(decision.reason)}
 
 ──────────────
 
 نص الإعلان:
 ${rawText}`;
-}
-    const tgRes = await tg("sendMessage", {
-      chat_id: targetChatId,
-      text: finalText,
-    });
 
-    console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
-  } catch (e) {
+  const tgRes = await tg("sendMessage", {
+    chat_id: REVIEW_CHAT_ID,
+    text: finalText,
+  });
+
+  console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
+} catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
 });
