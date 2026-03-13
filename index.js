@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS ads_published (
   website_status TEXT DEFAULT 'pending',
   published_at TEXT DEFAULT (datetime('now'))
 );
-`);;
+`);
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -55,6 +55,7 @@ const REVIEW_CHAT_ID = Number(process.env.REVIEW_CHAT_ID || 0);
 const QUDRAT_CHAT_ID = Number(process.env.QUDRAT_CHAT_ID || 0);
 const OPENROUTER_API_KEY = (process.env.OPENROUTER_API_KEY || "").trim();
 const MODEL_NAME = (process.env.MODEL_NAME || "deepseek/deepseek-chat-v3-0324:free").trim();
+
 function mustEnv(name, val) {
   if (!val) throw new Error(`Missing env var: ${name}`);
 }
@@ -79,9 +80,7 @@ async function tg(method, payload) {
 
 // ===== Helpers =====
 
-// تصنيف بسيط مؤقت (بعدها نطوره)
-// - إذا بيه ايميل/واتساب/هاتف => نعتبره واضح ويروح QUDRAT
-// - غير واضح => REVIEW
+// تصنيف بسيط مؤقت
 function classifyJob(text) {
   const t = text.toLowerCase();
 
@@ -99,34 +98,65 @@ function formatForSend(originalText, decision) {
 
 // ===== Health check =====
 app.get("/", (req, res) => res.status(200).send("ok"));
+
 // ===== Strict Validation Logic =====
 
-// normalizeText
+// مهم: نحافظ على الأسطر حتى لا يضيع شكل الإعلان
 function normalizeText(s = "") {
-  return (s || "")
+  return String(s || "")
     .replace(/\u200f|\u200e|\u202a|\u202b|\u202c/g, "")
-    .replace(/\s+/g, " ")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
+function normalizeInline(s = "") {
+  return normalizeText(s).replace(/\n+/g, " ").replace(/\s{2,}/g, " ").trim();
+}
+
 function extractCompany(text) {
-  const t = normalizeText(text);
-  const re = /(?:^|\n|\s)(?:شركة|شركه|مجموعة شركات|مجموعة|مؤسسة|مصنع|معمل|مجمع|مكتب)\s+([^\n\-–—|]{3,60})/i;
-  const m = t.match(re);
-  if (!m) return null;
-  return (m[1] || "").trim();
+  const lines = normalizeText(text)
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  for (const line of lines.slice(0, 12)) {
+    const m = line.match(/^(?:اسم الشركة|الشركة)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) {
+      let c = m[1].trim();
+      c = c.replace(/(الراتب|طريقة التواصل|التواصل|الدوام|الموقع|العنوان|التفاصيل).*$/i, "").trim();
+      c = c.replace(/[|]/g, " ").trim();
+      if (c && c.length <= 60) return c;
+    }
+  }
+
+  for (const line of lines.slice(0, 12)) {
+    const m = line.match(/^(?:شركة|شركه|مجموعة شركات|مجموعة|مؤسسة|مصنع|معمل|مجمع|مكتب)\s+(.+)$/i);
+    if (m && m[1]) {
+      let c = `${line.match(/^(شركة|شركه|مجموعة شركات|مجموعة|مؤسسة|مصنع|معمل|مجمع|مكتب)/i)?.[1] || "شركة"} ${m[1]}`.trim();
+      c = c.replace(/(تعلن|بحاجتها|عن حاجتها|تطلب|المطلوب|الراتب|التواصل|واتساب|الهاتف).*$/i, "").trim();
+      c = c.replace(/[|]/g, " ").trim();
+      if (c && c.length <= 60) return c;
+    }
+  }
+
+  return null;
 }
 
 function extractJobTitle(text) {
-  const t = normalizeText(text);
+  const lines = normalizeText(text)
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
 
-  const re1 = /(?:عنوان\s*الوظيف(?:ة|ي)\s*[:：]\s*)([^\n\-–—|]{3,80})/i;
-  const m1 = t.match(re1);
-  if (m1) return m1[1].trim();
+  for (const line of lines.slice(0, 10)) {
+    const m1 = line.match(/^(?:عنوان\s*الوظيف(?:ة|ي)|المسمى الوظيفي)\s*[:：]\s*(.+)$/i);
+    if (m1 && m1[1]) return m1[1].trim();
 
-  const re2 = /(?:مطلوب|فرصة عمل|وظيفة شاغرة|نبحث عن|Hiring|Position|Job Title)\s*[:：\-–—]?\s*([^\n]{3,80})/i;
-  const m2 = t.match(re2);
-  if (m2) return m2[1].trim();
+    const m2 = line.match(/^(?:مطلوب|مطلوبة|فرصة عمل|وظيفة شاغرة|نبحث عن|Hiring|Position|Job Title)\s*[:：\-–—]?\s*(.+)$/i);
+    if (m2 && m2[1]) return m2[1].trim();
+  }
 
   return null;
 }
@@ -134,7 +164,7 @@ function extractJobTitle(text) {
 function hasContact(text) {
   const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
   const phone = /(?:\+?\d[\d\s\-]{7,}\d)/;
-  const link  = /(https?:\/\/\S+|t\.me\/\S+)/i;
+  const link = /(https?:\/\/\S+|t\.me\/\S+)/i;
   return email.test(text) || phone.test(text) || link.test(text);
 }
 
@@ -146,20 +176,22 @@ function hasSalary(text) {
 
 function decideStrict(text) {
   const company = extractCompany(text);
-  const title =
-  (normalizeText(text).match(/مطلوب\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
-  (normalizeText(text).match(/مطلوبة\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
-  (normalizeText(text).match(/نبحث عن\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
-  extractJobTitle(text) ||
-  "غير مذكور";
+  const rawTitle =
+    extractJobTitle(text) ||
+    (normalizeText(text).match(/مطلوب\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
+    (normalizeText(text).match(/مطلوبة\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
+    (normalizeText(text).match(/نبحث عن\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
+    "غير مذكور";
+
+  const title = cleanJobTitle(rawTitle);
   const contact = hasContact(text);
-  const salary  = hasSalary(text);
+  const salary = hasSalary(text);
 
   const missing = [];
   if (!company) missing.push("company");
-  if (!title)   missing.push("job_title");
+  if (!title || title === "غير مذكور" || !isGoodTitle(title)) missing.push("job_title");
   if (!contact) missing.push("contact");
-  if (!salary)  missing.push("salary");
+  if (!salary) missing.push("salary");
 
   if (missing.length === 0) {
     return { bucket: "QUDRAT", reason: "all_4_ok" };
@@ -167,12 +199,13 @@ function decideStrict(text) {
 
   return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
 }
+
 function stripEmojis(s = "") {
   return s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
 }
 
 function cleanTitle(raw = "") {
-  let t = stripEmojis(normalizeText(raw));
+  let t = stripEmojis(normalizeInline(raw));
   t = t.replace(/^(مطلوب|مطلوبة|فرصة عمل|وظيفة شاغرة|نبحث عن|تعلن)\s*/i, "");
   t = t.replace(/(في|لدى|ضمن|بـ|على)\s+.*$/i, "");
   t = t.replace(/[|،\-–—].*$/i, "");
@@ -180,132 +213,144 @@ function cleanTitle(raw = "") {
 }
 
 function firstLine(text = "") {
-  return normalizeText(text).split("\n")[0] || normalizeText(text);
+  return normalizeText(text).split("\n")[0] || normalizeInline(text);
+}
+
+function isGoodTitle(t = "") {
+  if (!t) return false;
+
+  const x = normalizeInline(t).toLowerCase();
+
+  if (
+    [
+      "غير مذكور",
+      "موظف",
+      "موظفة",
+      "موظفين",
+      "موظفات",
+      "مطلوب",
+      "مطلوبة",
+      "مطلوب موظف",
+      "مطلوب موظفة",
+      "مطلوب موظفين",
+      "مطلوب موظفات",
+      "ذكور",
+      "إناث",
+      "للجنسين",
+      "whatsapp",
+      "واتساب",
+      "فرصة عمل",
+      "وظيفة"
+    ].includes(x)
+  ) return false;
+
+  if (x.length < 2 || x.length > 45) return false;
+  if (/(واتساب|whatsapp|للتواصل|اتصال|هاتف|رقم|ايميل|email)/i.test(x)) return false;
+  if (/(راتب|الراتب|الدوام|الموقع|العنوان|الشركة|تفاصيل|التقديم)/i.test(x)) return false;
+  if (/(تعلن|يعلن|شركة|مصنع|مطعم|معرض|عن توفر|فرصة عمل)/i.test(x) && x.length > 20) return false;
+
+  return true;
+}
+
+function cleanJobTitle(s = "") {
+  let x = normalizeInline(s);
+
+  x = x.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
+  x = x.replace(/^(مطلوب|مطلوبة|نبحث عن|فرصة عمل|وظيفة شاغرة)\s+/i, "").trim();
+  x = x.replace(/\b(موظفين|موظفات|موظف|موظفة|ذكور|إناث|للجنسين)\b/gi, "").trim();
+
+  x = x.replace(/\s+(?:براتب|راتب|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط)\b.*$/i, "");
+  x = x.replace(/[|،\-–—:].*$/i, "").trim();
+  x = x.replace(/\s{2,}/g, " ").trim();
+
+  return x || "غير مذكور";
 }
 
 function smartTitleFromText(raw = "") {
+  const lines = normalizeText(raw)
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
   const clean = (s) => cleanJobTitle(s);
 
-  const r = (raw || "")
-    .replace(/\[\d{1,2}\/\d{1,2}\/\d{4}[^\]]*\]/g, "")
-    .replace(/Jobs4us\|?/gi, "")
-    .trim();
-
-  const lines = r.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-
-  {
-    const first = lines[0] || "";
-    const m = first.match(/:\s*(.+)$/);
-    if (m && m[1]) {
-      const candidate = m[1]
-        .replace(/–.*$/g, "")
-        .replace(/\|.*$/g, "")
-        .trim();
-      const t = clean(candidate);
-      if (isGoodTitle(t)) return t;
-    }
-  }
-
-  {
-    const m = r.match(/العنوان\s*الوظيفي\s*\(([^)]+)\)/i) || r.match(/\(([^)]+)\)/);
-    if (m && m[1]) {
-      const t = clean(m[1].replace(/[،,]/g, " / ").replace(/\s+/g, " "));
-      if (isGoodTitle(t)) return t;
-    }
-  }
-
-  for (const line of lines.slice(0, 12)) {
-    const m = line.match(/^(?:🚹|🚺|🛑|🔥|📌|\s)*\s*(?:مطلوب|مطلوبة|نبحث عن)\s+(.+)$/i);
-    if (m && m[1]) {
-      const t = clean(m[1]);
-      if (isGoodTitle(t)) return t;
-    }
-  }
-
-  {
-    const m = r.match(/بصفة\s+وظيفية\s+([^\n\r]{2,80})/i);
-    if (m && m[1]) {
-      const t = clean(m[1]);
-      if (isGoodTitle(t)) return t;
-    }
-  }
-
-  {
-    const m = r.match(/(?:عن حاجت(?:ه|ها)\s*إلى|بحاجت(?:ه|ها)\s*إلى)\s+(.+)/i);
-    if (m && m[1]) {
-      const t = clean(m[1]);
-      if (isGoodTitle(t)) return t;
-    }
-  }
-
   for (const line of lines.slice(0, 10)) {
-    if (/(شركة|يعلن|تعلن|الموقع|العنوان|الراتب|الدوام|التقديم|للتواصل|واتساب|CV|ايميل)/i.test(line)) continue;
-
-    const t = clean(line);
-    if (isGoodTitle(t) && t.length <= 40) return t;
-  }
-
-  {
-    const picks = [];
-    for (const line of lines) {
-      const mm = line.match(/^([^\d]{2,40})\s+(?:راتب|الراتب)\s*\d+/i);
-      if (mm && mm[1]) {
-        const t = clean(mm[1]);
-        if (isGoodTitle(t)) picks.push(t);
-      }
+    let m = line.match(/^(?:📌|🔥|🚹|🚺|🛑|⬆️|⬇️|\s)*مطلوب(?:ة)?\s+(.+)$/i);
+    if (m && m[1]) {
+      const t = clean(m[1]);
+      if (isGoodTitle(t)) return t;
     }
-    if (picks.length) return [...new Set(picks)].join(" / ");
+
+    m = line.match(/^(?:📌|🔥|🚹|🚺|🛑|⬆️|⬇️|\s)*نبحث عن\s+(.+)$/i);
+    if (m && m[1]) {
+      const t = clean(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
+
+    m = line.match(/^(?:المسمى الوظيفي|عنوان الوظيفة|العنوان الوظيفي)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) {
+      const t = clean(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
   }
 
   const roles = [
-    "Field Sales Representative","Sales Representative","Account Manager","Customer Service",
-    "مندوب مبيعات ميداني","مندوب مبيعات","محاسب","حسابات","كاشير","استقبال","كابتن",
-    "سوشيال ميديا","كول سنتر","مدير صفحات","تسويق محتوى","مهندس تنفيذ جسور","مهندس مدني","قصّاب",
-    "منسق بضائع","عامل","بريسيل"
+    "مروجة مبيعات",
+    "مندوب مبيعات",
+    "مندوبة مبيعات",
+    "موظف مبيعات",
+    "موظفة مبيعات",
+    "محاسب",
+    "محاسبة",
+    "حسابات",
+    "كاشير",
+    "استقبال",
+    "موظف استقبال",
+    "موظفة استقبال",
+    "كول سنتر",
+    "خدمة عملاء",
+    "فني صيانة",
+    "سوشيال ميديا",
+    "مدير صفحات",
+    "تسويق محتوى",
+    "مهندس مدني",
+    "مهندس زراعي",
+    "علوم بايلوجي",
+    "صناعات غذائية",
+    "عامل",
+    "منسق بضائع",
+    "بريسيل"
   ];
 
-  for (const rr of roles) {
-    if (new RegExp(rr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(r)) {
-      if (/حسابات/i.test(rr)) return "حسابات";
-      return rr;
-    }
+  const fullText = normalizeText(raw);
+  for (const role of roles) {
+    if (fullText.includes(role)) return role;
   }
 
   return "غير مذكور";
 }
 
-function isGoodTitle(t = "") {
-  if (!t) return false;
-  if (/^(?:غير مذكور|موظف|موظفة|موظفين|موظفات|ذكور|إناث|للجنسين)$/i.test(t)) return false;
-  if (/(تعلن|يعلن|شركة|مصنع|مطعم|معرض|عن توفر|فرصة عمل)/i.test(t) && t.length > 35) return false;
-  return true;
-}
-
-function cleanJobTitle(s = "") {
-  let x = normalizeText(s);
-
-  x = x.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
-  x = x.replace(/\b(موظفين|موظفات|موظف|موظفة|ذكور|إناث|للجنسين)\b/gi, "").trim();
-
-  x = x.replace(/\s+(?:تعلن|شركة|مصنع|معرض|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط)\b.*$/i, "");
-  x = x.replace(/[|،\-–—].*$/i, "").trim();
-
-  return x || "غير مذكور";
-}
-
 function smartSalary(raw = "") {
-  const m = raw.match(/(?:الراتب|راتب)\s*[:：\-–—]?\s*([^\n\r]{2,80})/i);
-  return m ? normalizeText(m[1]) : "غير مذكور";
+  const lines = normalizeText(raw)
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const m = line.match(/(?:الراتب|راتب|الأجر|الأجر الأساسي|الراتب الأساسي)\s*[:：\-–—]?\s*([^\n\r]{2,80})/i);
+    if (m && m[1]) return normalizeInline(m[1]);
+  }
+
+  return "غير مذكور";
 }
 
 function smartContact(raw = "") {
   const phones = raw.match(/\+?\d[\d\s\-]{7,}\d/g) || [];
   const emails = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig) || [];
 
-  const list = [...new Set([...phones, ...emails])].map(x => normalizeText(x));
+  const list = [...new Set([...phones, ...emails])].map(x => normalizeInline(x));
   return list.length ? list.join(" | ") : "غير مذكور";
 }
-
 
 async function extractWithAI(text) {
   try {
@@ -323,36 +368,32 @@ async function extractWithAI(text) {
             content: `
 انت نظام متخصص في تحليل إعلانات الوظائف.
 
-المطلوب استخراج المعلومات التالية فقط:
-- title
-- company
-- salary
-- contact
-- category
+استخرج فقط الحقول التالية بصيغة JSON فقط:
+title
+company
+salary
+contact
+category
 
 قواعد مهمة:
-1- المسمى الوظيفي يجب أن يكون وظيفة حقيقية مثل:
-مندوب مبيعات
-محاسب
-موظف استقبال
-فني صيانة
-موظفة مبيعات
-
+1- title يجب أن يكون مسمى وظيفي حقيقي فقط.
 2- لا تعتبر الكلمات التالية مسمى وظيفي:
 الوظائف التالية
 فرصة عمل
 وظيفة
 مطلوب
+مطلوبة
 WhatsApp
 واتساب
 تحدث
 كتابة
-
-3- إذا كان الإعلان يحتوي عدة وظائف اختر أول وظيفة مذكورة.
-4- إذا لم تجد مسمى وظيفي واضح ضع "غير مذكور".
-5- إذا لم تجد أي قيمة لأي حقل ضع "غير مذكور".
-
-أرجع النتيجة بصيغة JSON فقط وبدون أي شرح إضافي.
+موظف
+موظفة
+موظفين
+موظفات
+3- إذا كان الإعلان يحتوي عدة وظائف اختر أول وظيفة واضحة.
+4- إذا لم تجد قيمة واضحة أرجع "غير مذكور".
+5- لا تضف شرحًا أو كلامًا خارج JSON.
 `
           },
           {
@@ -373,6 +414,7 @@ WhatsApp
     return null;
   }
 }
+
 const BAD_TITLES = [
   "whatsapp",
   "واتساب",
@@ -381,6 +423,16 @@ const BAD_TITLES = [
   "تحدث وكتابة",
   "فرصة عمل",
   "وظيفة",
+  "مطلوب",
+  "مطلوبة",
+  "مطلوب موظف",
+  "مطلوب موظفة",
+  "مطلوب موظفين",
+  "مطلوب موظفات",
+  "موظف",
+  "موظفة",
+  "موظفين",
+  "موظفات",
   "للتواصل",
   "ايميل",
   "البريد",
@@ -390,32 +442,39 @@ const BAD_TITLES = [
 function cleanAIResult(aiData, rawText = "") {
   if (!aiData || typeof aiData !== "object") return null;
 
-  let title = String(aiData.title || "").trim();
-  let company = String(aiData.company || "").trim();
-  let salary = String(aiData.salary || "").trim();
-  let contact = String(aiData.contact || "").trim();
-  let category = String(aiData.category || "").trim();
+  let title = normalizeInline(String(aiData.title || "").trim());
+  let company = normalizeInline(String(aiData.company || "").trim());
+  let salary = normalizeInline(String(aiData.salary || "").trim());
+  let contact = normalizeInline(String(aiData.contact || "").trim());
+  let category = normalizeInline(String(aiData.category || "").trim());
 
   const lowerTitle = title.toLowerCase();
 
   if (
     !title ||
     BAD_TITLES.includes(lowerTitle) ||
-    /^(whatsapp|واتساب|تحدث|كتابة|تحدث وكتابة|فرصة عمل|وظيفة)$/i.test(title)
+    /^(whatsapp|واتساب|تحدث|كتابة|تحدث وكتابة|فرصة عمل|وظيفة|مطلوب|مطلوبة|موظف|موظفة|موظفين|موظفات)$/i.test(title)
   ) {
     title = "غير مذكور";
   }
 
-  if (/(واتساب|whatsapp|للتواصل|الاتصال|الرقم|ايميل|email)/i.test(company)) {
-    company = "غير مذكور";
+  title = cleanJobTitle(title);
+  if (!isGoodTitle(title)) title = "غير مذكور";
+
+  if (
+    !company ||
+    /(واتساب|whatsapp|للتواصل|الاتصال|الرقم|ايميل|email|\d{7,})/i.test(company) ||
+    company.length > 60
+  ) {
+    company = extractCompany(rawText) || "غير مذكور";
   }
 
   if (!contact || contact === "غير مذكور") {
     contact = smartContact(rawText);
   }
 
-  if (!salary) {
-    salary = "غير مذكور";
+  if (!salary || salary === "غير مذكور") {
+    salary = smartSalary(rawText);
   }
 
   if (!category) {
@@ -424,6 +483,7 @@ function cleanAIResult(aiData, rawText = "") {
 
   return { title, company, salary, contact, category };
 }
+
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
@@ -436,47 +496,48 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-const chatId = msg.chat?.id;
-const rawText = (msg.text || msg.caption || "").trim();
+    const chatId = msg.chat?.id;
+    const rawText = normalizeText(msg.text || msg.caption || "");
 
-if (!rawText) return;
+    if (!rawText) return;
 
-// ✅ نشتغل فقط على كروب الـIndex
-if (chatId !== INBOX_CHAT_ID) return;
+    // نشتغل فقط على كروب الـIndex
+    if (chatId !== INBOX_CHAT_ID) return;
 
-const hash = crypto
-  .createHash("sha256")
-  .update(rawText)
-  .digest("hex");
+    const hash = crypto
+      .createHash("sha256")
+      .update(rawText)
+      .digest("hex");
 
-const exists = db.prepare(`
-  SELECT id FROM ads_raw
-  WHERE hash = ?
-    AND created_at >= datetime('now', '-7 days')
-  LIMIT 1
-`).get(hash);
+    const exists = db.prepare(`
+      SELECT id FROM ads_raw
+      WHERE hash = ?
+        AND created_at >= datetime('now', '-7 days')
+      LIMIT 1
+    `).get(hash);
 
-if (exists) {
-  console.log("Duplicate ad skipped");
-  return;
-}
+    if (exists) {
+      console.log("Duplicate ad skipped");
+      return;
+    }
 
-db.prepare(`
-  INSERT INTO ads_raw (hash, raw_text, source_chat_id, source_message_id)
-  VALUES (?, ?, ?, ?)
-`).run(hash, rawText, String(chatId), String(msg.message_id || ""));
+    db.prepare(`
+      INSERT INTO ads_raw (hash, raw_text, source_chat_id, source_message_id)
+      VALUES (?, ?, ?, ?)
+    `).run(hash, rawText, String(chatId), String(msg.message_id || ""));
 
-    const text = normalizeText(rawText);
+    const text = rawText;
 
     console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID });
     console.log("✅ /webhook HIT", new Date().toISOString());
-    console.log("✅ msg:", { chatId, preview: text.slice(0, 120) });
+    console.log("✅ msg:", { chatId, preview: normalizeInline(text).slice(0, 120) });
 
-    if (chatId !== INBOX_CHAT_ID) return;
     const aiData = await extractWithAI(rawText);
     const cleanedAI = cleanAIResult(aiData, rawText);
+
     console.log("CLEANED AI:", cleanedAI);
     console.log("AI DATA:", aiData);
+
     const decision = decideStrict(text);
     const targetChatId = decision.bucket === "QUDRAT"
       ? QUDRAT_CHAT_ID
@@ -486,34 +547,32 @@ db.prepare(`
 
     let finalText = text;
 
-if (decision.bucket === "QUDRAT") {
-  let title =
-    cleanedAI?.title && cleanedAI.title !== "غير مذكور"
-      ? cleanedAI.title
-      : smartTitleFromText(rawText);
+    if (decision.bucket === "QUDRAT") {
+      let title =
+        cleanedAI?.title && cleanedAI.title !== "غير مذكور"
+          ? cleanJobTitle(cleanedAI.title)
+          : smartTitleFromText(rawText);
 
-  if (/الوظائف التالية|فرصة عمل|وظيفة/i.test(title)) {
-    title = smartTitleFromText(rawText);
-  }
+      if (!isGoodTitle(title)) {
+        title = smartTitleFromText(rawText);
+      }
 
-  const company =
-    cleanedAI?.company && cleanedAI.company !== "غير مذكور"
-      ? cleanedAI.company
-      : ((extractCompany(rawText) || "غير مذكور")
-          .replace(/[|،\-–—].*$/i, "")
-          .trim());
+      const company =
+        cleanedAI?.company && cleanedAI.company !== "غير مذكور"
+          ? normalizeInline(cleanedAI.company)
+          : ((extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim());
 
-  const salary =
-    cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
-      ? cleanedAI.salary
-      : smartSalary(rawText);
+      const salary =
+        cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
+          ? normalizeInline(cleanedAI.salary)
+          : smartSalary(rawText);
 
-  const contact =
-    cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
-      ? cleanedAI.contact
-      : smartContact(rawText);
+      const contact =
+        cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
+          ? normalizeInline(cleanedAI.contact)
+          : smartContact(rawText);
 
-  finalText = `📌 فرصة عمل
+      finalText = `📌 فرصة عمل
 
 المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
@@ -524,13 +583,16 @@ if (decision.bucket === "QUDRAT") {
 
 التفاصيل:
 ${rawText}`;
-} else {
-  finalText = rawText;
-}
-    await tg("sendMessage", {
+    } else {
+      finalText = rawText;
+    }
+
+    const tgRes = await tg("sendMessage", {
       chat_id: targetChatId,
       text: finalText,
     });
+
+    console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
