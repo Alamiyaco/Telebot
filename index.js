@@ -596,11 +596,10 @@ ${rawText}`;
 
   console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
 }
-
-} catch (e) {
-  console.log("Webhook handler error:", e?.stack || String(e));
-}
-
+  } catch (e) {
+    console.log("Webhook handler error:", e?.stack || String(e));
+  }
+});
 // ✅ Render لازم يسمع على PORT
 const PORT = Number(process.env.PORT || 10000);
 app.listen(PORT, () => console.log("Server running on port", PORT));
