@@ -486,21 +486,34 @@ db.prepare(`
 
     let finalText = text;
 
-    if (decision.bucket === "QUDRAT") {
+if (decision.bucket === "QUDRAT") {
+  let title =
+    cleanedAI?.title && cleanedAI.title !== "غير مذكور"
+      ? cleanedAI.title
+      : smartTitleFromText(rawText);
 
-const company = cleanedAI?.company && cleanedAI.company !== "غير مذكور"
-  ? cleanedAI.company
-  : ((extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim());
+  if (/الوظائف التالية|فرصة عمل|وظيفة/i.test(title)) {
+    title = smartTitleFromText(rawText);
+  }
 
-const salary = cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
-  ? cleanedAI.salary
-  : smartSalary(rawText);
+  const company =
+    cleanedAI?.company && cleanedAI.company !== "غير مذكور"
+      ? cleanedAI.company
+      : ((extractCompany(rawText) || "غير مذكور")
+          .replace(/[|،\-–—].*$/i, "")
+          .trim());
 
-const contact = cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
-  ? cleanedAI.contact
-  : smartContact(rawText);
+  const salary =
+    cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
+      ? cleanedAI.salary
+      : smartSalary(rawText);
 
-      finalText = `📌 فرصة عمل
+  const contact =
+    cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
+      ? cleanedAI.contact
+      : smartContact(rawText);
+
+  finalText = `📌 فرصة عمل
 
 المسمى الوظيفي: ${title}
 اسم الشركة: ${company}
@@ -511,10 +524,9 @@ const contact = cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
 
 التفاصيل:
 ${rawText}`;
-    } else {
-      finalText = rawText;
-    }
-
+} else {
+  finalText = rawText;
+}
     await tg("sendMessage", {
       chat_id: targetChatId,
       text: finalText,
