@@ -356,7 +356,57 @@ category
     return null;
   }
 }
+const BAD_TITLES = [
+  "whatsapp",
+  "واتساب",
+  "تحدث",
+  "كتابة",
+  "تحدث وكتابة",
+  "فرصة عمل",
+  "وظيفة",
+  "للتواصل",
+  "ايميل",
+  "البريد",
+  "الرقم"
+];
 
+function cleanAIResult(aiData, rawText = "") {
+  if (!aiData || typeof aiData !== "object") return null;
+
+  let title = String(aiData.title || "").trim();
+  let company = String(aiData.company || "").trim();
+  let salary = String(aiData.salary || "").trim();
+  let contact = String(aiData.contact || "").trim();
+  let category = String(aiData.category || "").trim();
+
+  const lowerTitle = title.toLowerCase();
+
+  if (
+    !title ||
+    BAD_TITLES.includes(lowerTitle) ||
+    /^(whatsapp|واتساب|تحدث|كتابة|تحدث وكتابة|فرصة عمل|وظيفة)$/i.test(title)
+  ) {
+    title = "غير مذكور";
+  }
+
+  if (/(واتساب|whatsapp|للتواصل|الاتصال|الرقم|ايميل|email)/i.test(company)) {
+    company = "غير مذكور";
+  }
+
+  if (!contact || contact === "غير مذكور") {
+    contact = smartContact(rawText);
+  }
+
+  if (!salary) {
+    salary = "غير مذكور";
+  }
+
+  if (!category) {
+    category = "غير مذكور";
+  }
+
+  return { title, company, salary, contact, category };
+}
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   res.status(200).send("ok");
@@ -407,6 +457,8 @@ db.prepare(`
 
     if (chatId !== INBOX_CHAT_ID) return;
     const aiData = await extractWithAI(rawText);
+    const cleanedAI = cleanAIResult(aiData, rawText);
+    console.log("CLEANED AI:", cleanedAI);
     console.log("AI DATA:", aiData);
     const decision = decideStrict(text);
     const targetChatId = decision.bucket === "QUDRAT"
@@ -418,10 +470,21 @@ db.prepare(`
     let finalText = text;
 
     if (decision.bucket === "QUDRAT") {
-      const title = smartTitleFromText(rawText);
-      const company = (extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim();
-      const salary = smartSalary(rawText);
-      const contact = smartContact(rawText);
+const title = cleanedAI?.title && cleanedAI.title !== "غير مذكور"
+  ? cleanedAI.title
+  : smartTitleFromText(rawText);
+
+const company = cleanedAI?.company && cleanedAI.company !== "غير مذكور"
+  ? cleanedAI.company
+  : ((extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim());
+
+const salary = cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
+  ? cleanedAI.salary
+  : smartSalary(rawText);
+
+const contact = cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
+  ? cleanedAI.contact
+  : smartContact(rawText);
 
       finalText = `📌 فرصة عمل
 
