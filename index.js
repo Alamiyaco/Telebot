@@ -306,41 +306,6 @@ function smartTitleFromText(raw = "") {
   return "غير مذكور";
 }
 
-  const roles = [
-    "مروجة مبيعات",
-    "مندوب مبيعات",
-    "مندوبة مبيعات",
-    "موظف مبيعات",
-    "موظفة مبيعات",
-    "محاسب",
-    "محاسبة",
-    "حسابات",
-    "كاشير",
-    "استقبال",
-    "موظف استقبال",
-    "موظفة استقبال",
-    "كول سنتر",
-    "خدمة عملاء",
-    "فني صيانة",
-    "سوشيال ميديا",
-    "مدير صفحات",
-    "تسويق محتوى",
-    "مهندس مدني",
-    "مهندس زراعي",
-    "علوم بايلوجي",
-    "صناعات غذائية",
-    "عامل",
-    "منسق بضائع",
-    "بريسيل"
-  ];
-
-  const fullText = normalizeText(raw);
-  for (const role of roles) {
-    if (fullText.includes(role)) return role;
-  }
-
-  return "غير مذكور";
-}
 
 function smartSalary(raw = "") {
   const lines = normalizeText(raw)
@@ -630,10 +595,11 @@ ${rawText}`;
   });
 
   console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
+}
+
 } catch (e) {
-    console.log("Webhook handler error:", e?.stack || String(e));
-  }
-});
+  console.log("Webhook handler error:", e?.stack || String(e));
+}
 
 // ✅ Render لازم يسمع على PORT
 const PORT = Number(process.env.PORT || 10000);
