@@ -110,7 +110,30 @@ function normalizeText(s = "") {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+function extractCompanyAdvanced(raw = "") {
+  const text = normalizeText(raw);
+  const lines = text.split("\n").map(x => x.trim()).filter(Boolean);
 
+  for (const line of lines.slice(0, 12)) {
+    let m = line.match(/^(?:اسم الشركة|الشركة)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) {
+      let c = normalizeInline(m[1]);
+      c = c.replace(/(الراتب|طريقة التواصل|التواصل|الدوام|الموقع|العنوان|التفاصيل).*$/i, "").trim();
+      if (c && c.length <= 70) return c;
+    }
+  }
+
+  for (const line of lines.slice(0, 10)) {
+    let m = line.match(/^(?:تعلن|يعلن)\s+(شركة|شركه|وكالة|مؤسسة|معمل|مصنع|مجموعة شركات|مجموعة|محل|مطعم|معرض)\s+(.+)$/i);
+    if (m && m[1] && m[2]) {
+      let c = `${m[1]} ${m[2]}`.trim();
+      c = c.replace(/(عن حاجتها|بحاجتها|تطلب|المطلوب|للتعيين|الراتب|التواصل|واتساب).*$/i, "").trim();
+      if (c && c.length <= 70) return c;
+    }
+  }
+
+  return extractCompany(raw);
+}
 function normalizeInline(s = "") {
   return normalizeText(s).replace(/\n+/g, " ").replace(/\s{2,}/g, " ").trim();
 }
