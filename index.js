@@ -317,32 +317,35 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    const chatId = msg.chat?.id;
-    const rawText = (msg.text || msg.caption || "").trim();
+const chatId = msg.chat?.id;
+const rawText = (msg.text || msg.caption || "").trim();
 
-    if (!rawText) return;
+if (!rawText) return;
 
-    const hash = crypto
-      .createHash("sha256")
-      .update(rawText)
-      .digest("hex");
+// ✅ نشتغل فقط على كروب الـIndex
+if (chatId !== INBOX_CHAT_ID) return;
+
+const hash = crypto
+  .createHash("sha256")
+  .update(rawText)
+  .digest("hex");
 
 const exists = db.prepare(`
-SELECT id FROM ads_raw
-WHERE hash = ?
-AND created_at >= datetime('now', '-7 days')
-LIMIT 1
+  SELECT id FROM ads_raw
+  WHERE hash = ?
+    AND created_at >= datetime('now', '-7 days')
+  LIMIT 1
 `).get(hash);
 
-    if (exists) {
-      console.log("Duplicate ad skipped");
-      return;
-    }
+if (exists) {
+  console.log("Duplicate ad skipped");
+  return;
+}
 
 db.prepare(`
-INSERT INTO ads_raw (hash, raw_text, source_chat_id, source_message_id)
-VALUES (?, ?, ?, ?)
-`).run(hash, rawText, chatId, msg.message_id);;
+  INSERT INTO ads_raw (hash, raw_text, source_chat_id, source_message_id)
+  VALUES (?, ?, ?, ?)
+`).run(hash, rawText, String(chatId), String(msg.message_id || ""));
 
     const text = normalizeText(rawText);
 
