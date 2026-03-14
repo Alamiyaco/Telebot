@@ -349,45 +349,40 @@ function translateReviewReason(reason = "") {
   return fields.map(f => `- ${map[f] || f}`).join("\n");
 }
 
-function decideStrict(text, aiData = null) {
-  const safeAI = aiData && typeof aiData === "object" ? aiData : {};
+function decideAd(ai) {
 
-  const company =
-    safeAI.company && safeAI.company !== "غير مذكور"
-      ? safeAI.company
-      : extractCompany(text);
-
-  const title =
-    safeAI.title && safeAI.title !== "غير مذكور"
-      ? safeAI.title
-      : smartTitleFromText(text);
-
-  const contact =
-    safeAI.contact && safeAI.contact !== "غير مذكور"
-      ? safeAI.contact
-      : (hasContact(text) ? "موجود" : "");
-
-  const salary =
-    safeAI.salary && safeAI.salary !== "غير مذكور" && isLikelySalaryValue(safeAI.salary)
-      ? safeAI.salary
-      : (hasSalary(text) ? "موجود" : "");
-
-  const missing = [];
-
-  if (!company || company === "غير مذكور") missing.push("company");
-  if (!title || title === "غير مذكور" || !isGoodTitle(title)) missing.push("job_title");
-  if (!contact) missing.push("contact");
-  if (!salary) missing.push("salary");
-
-  if (missing.length === 0) {
-    return { bucket: "QUDRAT", reason: "ai_ok" };
+  if (!ai) {
+    return {
+      bucket: "REVIEW",
+      reason: "AI failed"
+    };
   }
 
-  if (missing.length === 1 && missing[0] === "salary") {
-    return { bucket: "QUDRAT", reason: "salary_missing_but_ok" };
+  const title = (ai.title || "").trim();
+  const company = (ai.company || "").trim();
+  const contact = (ai.contact || "").trim();
+
+  const hasTitle =
+    title &&
+    title !== "غير مذكور" &&
+    title.length > 2;
+
+  const hasContact =
+    contact &&
+    contact !== "غير مذكور";
+
+  // أهم شرطين فقط
+  if (hasTitle && hasContact) {
+    return {
+      bucket: "QUDRAT",
+      reason: "valid_job"
+    };
   }
 
-  return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
+  return {
+    bucket: "REVIEW",
+    reason: "missing_title_or_contact"
+  };
 }
 
 async function extractWithAI(text) {
