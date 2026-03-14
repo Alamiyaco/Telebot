@@ -53,8 +53,8 @@ const BOT_TOKEN = (process.env.BOT_TOKEN || "").trim();
 const INBOX_CHAT_ID = Number(process.env.INBOX_CHAT_ID || 0);
 const REVIEW_CHAT_ID = Number(process.env.REVIEW_CHAT_ID || 0);
 const QUDRAT_CHAT_ID = Number(process.env.QUDRAT_CHAT_ID || 0);
-const OPENROUTER_API_KEY = (process.env.OPENROUTER_API_KEY || "").trim();
-const MODEL_NAME = (process.env.MODEL_NAME || "deepseek/deepseek-chat-v3-0324:free").trim();
+const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || "").trim();
+const MODEL_NAME = (process.env.MODEL_NAME || "gpt-4o-mini").trim();
 
 function mustEnv(name, val) {
   if (!val) throw new Error(`Missing env var: ${name}`);
@@ -64,6 +64,7 @@ mustEnv("BOT_TOKEN", BOT_TOKEN);
 mustEnv("INBOX_CHAT_ID", INBOX_CHAT_ID);
 mustEnv("REVIEW_CHAT_ID", REVIEW_CHAT_ID);
 mustEnv("QUDRAT_CHAT_ID", QUDRAT_CHAT_ID);
+mustEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
 // ===== Telegram caller =====
 async function tg(method, payload) {
@@ -359,21 +360,24 @@ function decideStrict(text) {
 
 async function extractWithAI(text) {
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
         model: MODEL_NAME,
-        messages: [
+        input: [
           {
             role: "system",
-            content: `
-انت نظام متخصص في تحليل إعلانات الوظائف.
+            content: [
+              {
+                type: "input_text",
+                text: `
+أنت نظام متخصص في تحليل إعلانات الوظائف العربية.
 
-استخرج فقط الحقول التالية بصيغة JSON فقط:
+استخرج فقط هذه الحقول:
 title
 company
 salary
@@ -381,8 +385,8 @@ contact
 category
 
 قواعد مهمة:
-1- title يجب أن يكون مسمى وظيفي حقيقي فقط.
-2- لا تعتبر الكلمات التالية مسمى وظيفي:
+1) title يجب أن يكون مسمى وظيفي حقيقي فقط.
+2) لا تعتبر الكلمات التالية مسمى وظيفي:
 الوظائف التالية
 فرصة عمل
 وظيفة
@@ -396,22 +400,74 @@ WhatsApp
 موظفة
 موظفين
 موظفات
-3- إذا كان الإعلان يحتوي عدة وظائف اختر أول وظيفة واضحة.
-4- إذا لم تجد قيمة واضحة أرجع "غير مذكور".
-5- لا تضف شرحًا أو كلامًا خارج JSON.
-`
+3) إذا كان الإعلان يحتوي عدة وظائف اختر أول وظيفة واضحة.
+4) إذا لم تجد قيمة واضحة فأرجع "غير مذكور".
+5) لا تُرجع أي شرح، فقط JSON مطابق تمامًا للمخطط.
+                `.trim()
+              }
+            ]
           },
           {
             role: "user",
-            content: text
+            content: [
+              {
+                type: "input_text",
+                text
+              }
+            ]
           }
         ],
-        temperature: 0.1
+        text: {
+          format: {
+            type: "json_schema",
+            name: "job_ad_extraction",
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                title: { type: "string" },
+                company: { type: "string" },
+                salary: { type: "string" },
+                contact: { type: "string" },
+                category: { type: "string" }
+              },
+              required: ["title", "company", "salary", "contact", "category"]
+            },
+            strict: true
+          }
+        }
       })
     });
 
     const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content || "{}";
+
+    if (!response.ok) {
+      console.log("OpenAI API error:", data);
+      return null;
+    }
+
+    // غالبًا Structured Outputs ترجع JSON كنص داخل output_text
+    let content = data.output_text || "";
+
+    // fallback احتياطي
+    if (!content && Array.isArray(data.output)) {
+      for (const item of data.output) {
+        if (item.type === "message" && Array.isArray(item.content)) {
+          for (const c of item.content) {
+            if (c.type === "output_text" && c.text) {
+              content = c.text;
+              break;
+            }
+          }
+        }
+        if (content) break;
+      }
+    }
+
+    if (!content) {
+      console.log("OpenAI empty output:", data);
+      return null;
+    }
 
     return JSON.parse(content);
   } catch (err) {
