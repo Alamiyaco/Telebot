@@ -97,38 +97,35 @@ function stripEmojis(s = "") {
 }
 
 function extractCompany(text) {
-
   const normalized = normalizeText(text);
+  const lines = normalized.split("\n").map(x => x.trim()).filter(Boolean);
 
-  // 1️⃣ صيغة: تعلن شركة ...
+  // 1) صيغة: تعلن شركة ...
   let m = normalized.match(/تعلن\s+(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع)\s+([^\n]{2,60})/i);
-  if (m) return `${m[1]} ${m[2]}`.trim();
+  if (m) {
+    const c = `${m[1]} ${m[2]}`.trim();
+    if (c.length <= 60) return c;
+  }
 
-  // 2️⃣ صيغة: شركة ...
-  m = normalized.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع)\s+([^\n]{2,60})/im);
-  if (m) return `${m[1]} ${m[2]}`.trim();
-
-  // 3️⃣ شركة إنكليزية مثل
-  // More Agency
-  m = normalized.match(/([A-Z][A-Za-z]+\s+(Agency|Group|Company|Co|Ltd))/);
-  if (m) return m[0];
-
-  // 4️⃣ fallback
-  const lines = normalized.split("\n").slice(0,6);
-  for (const line of lines) {
-    if (line.length < 60 && /(agency|group|company)/i.test(line)) {
-      return line.trim();
+  // 2) صيغة: شركة ...
+  for (const line of lines.slice(0, 6)) {
+    m = line.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع)\s+([^\n]{2,60})/i);
+    if (m) {
+      const c = `${m[1]} ${m[2]}`.trim();
+      if (c.length <= 60) return c;
     }
   }
 
-  return null;
-}
+  // 3) شركة إنكليزية مثل: More Agency / KH Group
+  m = normalized.match(/\b([A-Z][A-Za-z0-9&.\- ]{1,40}\s(?:Agency|Group|Company|Co|Ltd))\b/);
+  if (m) return m[1].trim();
 
+  // 4) fallback قديم
   for (const line of lines.slice(0, 12)) {
-    const m = line.match(/^(?:شركة|شركه|مجموعة شركات|مجموعة|مؤسسة|مصنع|معمل|مجمع|مكتب)\s+(.+)$/i);
+    m = line.match(/^(?:اسم الشركة|الشركة)\s*[:：]\s*(.+)$/i);
     if (m && m[1]) {
-      let c = `${line.match(/^(شركة|شركه|مجموعة شركات|مجموعة|مؤسسة|مصنع|معمل|مجمع|مكتب)/i)?.[1] || "شركة"} ${m[1]}`.trim();
-      c = c.replace(/(تعلن|بحاجتها|عن حاجتها|تطلب|المطلوب|الراتب|التواصل|واتساب|الهاتف).*$/i, "").trim();
+      let c = m[1].trim();
+      c = c.replace(/(الراتب|طريقة التواصل|التواصل|الدوام|الموقع|العنوان|التفاصيل).*$/i, "").trim();
       c = c.replace(/[|]/g, " ").trim();
       if (c && c.length <= 60) return c;
     }
