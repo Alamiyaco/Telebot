@@ -97,38 +97,49 @@ function stripEmojis(s = "") {
   return s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
 }
 
+function hasContact(text) {
+  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const phone = /(?:\+?\d[\d\s\-]{7,}\d)/;
+  const link = /(https?:\/\/\S+|t\.me\/\S+)/i;
+  return email.test(text) || phone.test(text) || link.test(text);
+}
+
+function hasSalary(text) {
+  const salaryWord = /(راتب|Salary|أجر|الاجر|الأجر)/i;
+  const number = /(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/;
+  return salaryWord.test(text) && number.test(text);
+}
+
 function extractCompany(text) {
   const normalized = normalizeText(text);
   const lines = normalized.split("\n").map(x => x.trim()).filter(Boolean);
 
-  // 1) صيغة: تعلن شركة ...
-  let m = normalized.match(/تعلن\s+(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع)\s+([^\n]{2,60})/i);
+  let m = normalized.match(/(?:تعلن|يعلن)\s+(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب)\s+([^\n]{2,60})/i);
   if (m) {
-    const c = `${m[1]} ${m[2]}`.trim();
-    if (c.length <= 60) return c;
+    let c = `${m[1]} ${m[2]}`.trim();
+    c = c.replace(/(عن حاجتها|بحاجتها|لتعيين|لتوظيف|تطلب|المطلوب|الراتب|التواصل).*$/i, "").trim();
+    if (c.length <= 70) return c;
   }
 
-  // 2) صيغة: شركة ...
-  for (const line of lines.slice(0, 6)) {
-    m = line.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع)\s+([^\n]{2,60})/i);
+  for (const line of lines.slice(0, 8)) {
+    m = line.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب)\s+([^\n]{2,60})/i);
     if (m) {
-      const c = `${m[1]} ${m[2]}`.trim();
-      if (c.length <= 60) return c;
+      let c = `${m[1]} ${m[2]}`.trim();
+      c = c.replace(/(عن حاجتها|بحاجتها|لتعيين|لتوظيف|تطلب|المطلوب|الراتب|التواصل).*$/i, "").trim();
+      if (c.length <= 70) return c;
     }
   }
 
-  // 3) شركة إنكليزية مثل: More Agency / KH Group
-  m = normalized.match(/\b([A-Z][A-Za-z0-9&.\- ]{1,40}\s(?:Agency|Group|Company|Co|Ltd))\b/);
+  m = normalized.match(/\b([A-Z][A-Za-z0-9&.\- ]{1,50}\s(?:Agency|Group|Company|Co|Ltd|Institute|Center))\b/);
   if (m) return m[1].trim();
 
-  // 4) fallback قديم
   for (const line of lines.slice(0, 12)) {
     m = line.match(/^(?:اسم الشركة|الشركة)\s*[:：]\s*(.+)$/i);
     if (m && m[1]) {
       let c = m[1].trim();
       c = c.replace(/(الراتب|طريقة التواصل|التواصل|الدوام|الموقع|العنوان|التفاصيل).*$/i, "").trim();
       c = c.replace(/[|]/g, " ").trim();
-      if (c && c.length <= 60) return c;
+      if (c && c.length <= 70) return c;
     }
   }
 
@@ -141,28 +152,32 @@ function extractJobTitle(text) {
     .map(x => x.trim())
     .filter(Boolean);
 
-  for (const line of lines.slice(0, 10)) {
-    const m1 = line.match(/^(?:عنوان\s*الوظيف(?:ة|ي)|المسمى الوظيفي)\s*[:：]\s*(.+)$/i);
-    if (m1 && m1[1]) return m1[1].trim();
+  for (const line of lines.slice(0, 12)) {
+    let m = line.match(/^(?:عنوان\s*الوظيف(?:ة|ي)|المسمى الوظيفي|العنوان الوظيفي)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) return m[1].trim();
 
-    const m2 = line.match(/^(?:مطلوب|مطلوبة|فرصة عمل|وظيفة شاغرة|نبحث عن|Hiring|Position|Job Title)\s*[:：\-–—]?\s*(.+)$/i);
-    if (m2 && m2[1]) return m2[1].trim();
+    m = line.match(/^(?:مطلوب|مطلوبة|فرصة عمل|وظيفة شاغرة|نبحث عن|بحاجة الى|بحاجة إلى|Hiring|Position|Job Title)\s*[:：\-–—]?\s*(.+)$/i);
+    if (m && m[1]) return m[1].trim();
   }
 
   return null;
 }
 
-function hasContact(text) {
-  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
-  const phone = /(?:\+?\d[\d\s\-]{7,}\d)/;
-  const link = /(https?:\/\/\S+|t\.me\/\S+)/i;
-  return email.test(text) || phone.test(text) || link.test(text);
-}
-
-function hasSalary(text) {
-  const salaryWord = /(راتب|Salary|أجر)/i;
-  const number = /(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/;
-  return salaryWord.test(text) && number.test(text);
+function isBadGenericTitle(x = "") {
+  const t = normalizeInline(x).toLowerCase();
+  return [
+    "غير مذكور",
+    "مطلوب",
+    "مطلوبة",
+    "موظف",
+    "موظفة",
+    "موظفين",
+    "موظفات",
+    "فرصة عمل",
+    "وظيفة",
+    "whatsapp",
+    "واتساب"
+  ].includes(t);
 }
 
 function isGoodTitle(t = "") {
@@ -170,33 +185,11 @@ function isGoodTitle(t = "") {
 
   const x = normalizeInline(t).toLowerCase();
 
-  if (
-    [
-      "غير مذكور",
-      "موظف",
-      "موظفة",
-      "موظفين",
-      "موظفات",
-      "مطلوب",
-      "مطلوبة",
-      "مطلوب موظف",
-      "مطلوب موظفة",
-      "مطلوب موظفين",
-      "مطلوب موظفات",
-      "ذكور",
-      "إناث",
-      "للجنسين",
-      "whatsapp",
-      "واتساب",
-      "فرصة عمل",
-      "وظيفة"
-    ].includes(x)
-  ) return false;
-
-  if (x.length < 2 || x.length > 45) return false;
+  if (isBadGenericTitle(x)) return false;
+  if (x.length < 2 || x.length > 60) return false;
   if (/(واتساب|whatsapp|للتواصل|اتصال|هاتف|رقم|ايميل|email)/i.test(x)) return false;
   if (/(راتب|الراتب|الدوام|الموقع|العنوان|الشركة|تفاصيل|التقديم)/i.test(x)) return false;
-  if (/(تعلن|يعلن|شركة|مصنع|مطعم|معرض|عن توفر|فرصة عمل)/i.test(x) && x.length > 20) return false;
+  if (/(تعلن|يعلن|شركة|مطعم|معهد|وكالة|مؤسسة)/i.test(x) && x.length > 28) return false;
 
   return true;
 }
@@ -204,27 +197,19 @@ function isGoodTitle(t = "") {
 function cleanJobTitle(s = "") {
   let x = normalizeInline(s);
 
-  x = x.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
-  x = x.replace(/^(مطلوب|مطلوبة|نبحث عن|فرصة عمل|وظيفة شاغرة)\s+/i, "").trim();
-  x = x.replace(/\b(موظفين|موظفات|موظف|موظفة|ذكور|إناث|للجنسين)\b/gi, "").trim();
+  x = stripEmojis(x);
+  x = x.replace(/^(مطلوب|مطلوبة|نبحث عن|فرصة عمل|وظيفة شاغرة|بحاجة الى|بحاجة إلى)\s+/i, "").trim();
 
-  x = x.replace(/\s+(?:براتب|راتب|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط)\b.*$/i, "");
-  x = x.replace(/[|،\-–—:].*$/i, "").trim();
+  // لا نحذف موظفين/موظفات لأن أحيانًا تكون صحيحة مثل "موظفين مبيعات"
+  x = x.replace(/\b(ذكور|إناث|للجنسين)\b/gi, "").trim();
+
+  x = x.replace(/\s+(?:في|للعمل في|للعمل لدى|داخل|ضمن)\s+(شركة|مطعم|معهد|وكالة|مؤسسة|مكتب|معمل|مصنع).*/i, "").trim();
+  x = x.replace(/\s+(?:براتب|راتب|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط)\b.*$/i, "").trim();
+  x = x.replace(/[|:\-–—].*$/i, "").trim();
   x = x.replace(/\s{2,}/g, " ").trim();
 
+  if (isBadGenericTitle(x)) return "غير مذكور";
   return x || "غير مذكور";
-}
-
-function cleanTitle(raw = "") {
-  let t = stripEmojis(normalizeInline(raw));
-  t = t.replace(/^(مطلوب|مطلوبة|فرصة عمل|وظيفة شاغرة|نبحث عن|تعلن)\s*/i, "");
-  t = t.replace(/(في|لدى|ضمن|بـ|على)\s+.*$/i, "");
-  t = t.replace(/[|،\-–—].*$/i, "");
-  return t.trim() || "غير مذكور";
-}
-
-function firstLine(text = "") {
-  return normalizeText(text).split("\n")[0] || normalizeInline(text);
 }
 
 function smartTitleFromText(raw = "") {
@@ -233,34 +218,17 @@ function smartTitleFromText(raw = "") {
     .map(x => x.trim())
     .filter(Boolean);
 
-  const clean = (s) => cleanJobTitle(s);
-
-  for (const line of lines.slice(0, 10)) {
-    let m = line.match(/^(?:مطلوب|مطلوبة)\s+(.+)$/i);
-    if (m && m[1]) {
-      const t = clean(m[1]);
-      if (isGoodTitle(t)) return t;
-    }
-
-    m = line.match(/^نبحث عن\s+(.+)$/i);
-    if (m && m[1]) {
-      const t = clean(m[1]);
-      if (isGoodTitle(t)) return t;
-    }
-
-    m = line.match(/^(?:المسمى الوظيفي|عنوان الوظيفة|العنوان الوظيفي)\s*[:：]\s*(.+)$/i);
-    if (m && m[1]) {
-      const t = clean(m[1]);
-      if (isGoodTitle(t)) return t;
-    }
-  }
-
-  const roles = [
+  const knownRoles = [
+    "موظفين مبيعات",
+    "موظف مبيعات",
+    "موظفة مبيعات",
     "مروجة مبيعات",
     "مندوب مبيعات",
     "مندوبة مبيعات",
-    "موظف مبيعات",
-    "موظفة مبيعات",
+    "كاتب محتوى",
+    "كاتبة محتوى",
+    "Call Center",
+    "خدمة عملاء",
     "محاسب",
     "محاسبة",
     "حسابات",
@@ -268,24 +236,35 @@ function smartTitleFromText(raw = "") {
     "استقبال",
     "موظف استقبال",
     "موظفة استقبال",
-    "كول سنتر",
-    "خدمة عملاء",
     "فني صيانة",
-    "سوشيال ميديا",
-    "مدير صفحات",
-    "تسويق محتوى",
     "مهندس مدني",
     "مهندس زراعي",
-    "علوم بايلوجي",
+    "مهندس كهرباء",
     "صناعات غذائية",
+    "علوم بايلوجي",
     "عامل",
-    "منسق بضائع",
-    "بريسيل"
+    "عامل مطبخ",
+    "مدير صفحات",
+    "سوشيال ميديا"
   ];
 
-  const fullText = normalizeText(raw);
-  for (const role of roles) {
-    if (fullText.includes(role)) return role;
+  const full = normalizeText(raw);
+  for (const role of knownRoles) {
+    if (full.includes(role)) return role;
+  }
+
+  for (const line of lines.slice(0, 12)) {
+    let m = line.match(/^(?:مطلوب|مطلوبة|نبحث عن|بحاجة الى|بحاجة إلى)\s+(.+)$/i);
+    if (m && m[1]) {
+      const t = cleanJobTitle(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
+
+    m = line.match(/^(?:المسمى الوظيفي|عنوان الوظيفة|العنوان الوظيفي)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) {
+      const t = cleanJobTitle(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
   }
 
   return "غير مذكور";
@@ -298,9 +277,13 @@ function smartSalary(raw = "") {
     .filter(Boolean);
 
   for (const line of lines) {
-    const m = line.match(/(?:الراتب|راتب|الأجر|الأجر الأساسي|الراتب الأساسي)\s*[:：\-–—]?\s*([^\n\r]{2,80})/i);
+    const m = line.match(/(?:الراتب|راتب|الأجر|الاجر|الأجر الأساسي|الراتب الأساسي)\s*[:：\-–—]?\s*([^\n\r]{2,100})/i);
     if (m && m[1]) return normalizeInline(m[1]);
   }
+
+  // fallback: رقم واضح داخل الإعلان
+  const m2 = normalizeText(raw).match(/(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/);
+  if (m2 && m2[1]) return normalizeInline(m2[1]);
 
   return "غير مذكور";
 }
@@ -360,10 +343,17 @@ function decideStrict(text, aiData = null) {
   if (!company || company === "غير مذكور") missing.push("company");
   if (!title || title === "غير مذكور" || !isGoodTitle(title)) missing.push("job_title");
   if (!contact) missing.push("contact");
+
+  // الراتب أقل تشددًا
   if (!salary) missing.push("salary");
 
-  if (missing.length <= 1) {
+  // اسمح بمرور الإعلان إذا كان ينقصه الراتب فقط
+  if (missing.length === 0) {
     return { bucket: "QUDRAT", reason: "ai_ok" };
+  }
+
+  if (missing.length === 1 && missing[0] === "salary") {
+    return { bucket: "QUDRAT", reason: "salary_missing_but_ok" };
   }
 
   return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
@@ -386,34 +376,36 @@ async function extractWithAI(text) {
               {
                 type: "input_text",
                 text: `
-أنت نظام متخصص في تحليل إعلانات الوظائف العربية.
+أنت خبير في تحليل إعلانات الوظائف العربية، خاصة الإعلانات العراقية غير المرتبة.
 
-استخرج فقط هذه الحقول:
+استخرج فقط الحقول التالية بصيغة JSON:
 title
 company
 salary
 contact
 category
 
-قواعد مهمة:
-1) title يجب أن يكون مسمى وظيفي حقيقي فقط.
-2) لا تعتبر الكلمات التالية مسمى وظيفي:
-الوظائف التالية
-فرصة عمل
-وظيفة
-مطلوب
-مطلوبة
-WhatsApp
-واتساب
-تحدث
-كتابة
-موظف
-موظفة
-موظفين
-موظفات
-3) إذا كان الإعلان يحتوي عدة وظائف اختر أول وظيفة واضحة.
-4) إذا لم تجد قيمة واضحة فأرجع "غير مذكور".
-5) لا تُرجع أي شرح، فقط JSON مطابق تمامًا للمخطط.
+تعليمات دقيقة جدًا:
+1) title يجب أن يكون اسم الوظيفة فقط، وليس جملة طويلة.
+2) إذا كان النص مثل:
+"مطلوب موظفين مبيعات"
+فالعنوان يجب أن يكون:
+"موظفين مبيعات"
+3) إذا كان النص مثل:
+"مطلوب موظفات في معهد..."
+فلا تجعل اسم المكان جزءًا من title.
+4) إذا كان النص مثل:
+"تعلن شركة البيت العراقي عن حاجتها الى موظفين مبيعات"
+فالشركة:
+"شركة البيت العراقي"
+والعنوان:
+"موظفين مبيعات"
+5) إذا كان النص يحتوي جهة مثل:
+معهد / وكالة / شركة / مطعم / مؤسسة / مكتب
+فحاول استخراجها كـ company.
+6) إذا لم تجد قيمة واضحة اكتب:
+"غير مذكور"
+7) لا ترجع أي شرح. فقط JSON مطابق للمخطط.
                 `.trim()
               }
             ]
@@ -457,10 +449,8 @@ WhatsApp
       return null;
     }
 
-    // غالبًا Structured Outputs ترجع JSON كنص داخل output_text
     let content = data.output_text || "";
 
-    // fallback احتياطي
     if (!content && Array.isArray(data.output)) {
       for (const item of data.output) {
         if (item.type === "message" && Array.isArray(item.content)) {
@@ -530,13 +520,20 @@ function cleanAIResult(aiData, rawText = "") {
     title = "غير مذكور";
   }
 
-  title = cleanJobTitle(title);
-  if (!isGoodTitle(title)) title = "غير مذكور";
+  // هنا لا نكسر ناتج OpenAI بقسوة
+  if (title !== "غير مذكور") {
+    title = normalizeInline(stripEmojis(title));
+  }
+
+  if (!isGoodTitle(title)) {
+    const fallback = smartTitleFromText(rawText);
+    title = isGoodTitle(fallback) ? fallback : "غير مذكور";
+  }
 
   if (
     !company ||
     /(واتساب|whatsapp|للتواصل|الاتصال|الرقم|ايميل|email|\d{7,})/i.test(company) ||
-    company.length > 60
+    company.length > 70
   ) {
     company = extractCompany(rawText) || "غير مذكور";
   }
@@ -572,8 +569,6 @@ app.post("/webhook", async (req, res) => {
     const rawText = normalizeText(msg.text || msg.caption || "");
 
     if (!rawText) return;
-
-    // نشتغل فقط على كروب الـIndex
     if (chatId !== INBOX_CHAT_ID) return;
 
     const hash = crypto
@@ -600,7 +595,7 @@ app.post("/webhook", async (req, res) => {
 
     const text = rawText;
 
-    console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID });
+    console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID, MODEL_NAME });
     console.log("✅ /webhook HIT", new Date().toISOString());
     console.log("✅ msg:", { chatId, preview: normalizeInline(text).slice(0, 120) });
 
@@ -620,19 +615,23 @@ app.post("/webhook", async (req, res) => {
     let finalText = text;
 
     if (decision.bucket === "QUDRAT") {
-      let title =
-        cleanedAI?.title && cleanedAI.title !== "غير مذكور"
-          ? cleanJobTitle(cleanedAI.title)
-          : smartTitleFromText(rawText);
-
-      if (!isGoodTitle(title)) {
+      let title = "غير مذكور";
+      if (cleanedAI?.title && cleanedAI.title !== "غير مذكور") {
+        title = normalizeInline(cleanedAI.title);
+      } else {
         title = smartTitleFromText(rawText);
       }
 
-      const company =
-        cleanedAI?.company && cleanedAI.company !== "غير مذكور"
-          ? normalizeInline(cleanedAI.company)
-          : ((extractCompany(rawText) || "غير مذكور").replace(/[|،\-–—].*$/i, "").trim());
+      if (!title || title === "غير مذكور" || !isGoodTitle(title)) {
+        title = smartTitleFromText(rawText);
+      }
+
+      let company = "غير مذكور";
+      if (cleanedAI?.company && cleanedAI.company !== "غير مذكور") {
+        company = normalizeInline(cleanedAI.company);
+      } else {
+        company = extractCompany(rawText) || "غير مذكور";
+      }
 
       const salary =
         cleanedAI?.salary && cleanedAI.salary !== "غير مذكور"
