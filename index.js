@@ -332,32 +332,41 @@ function translateReviewReason(reason = "") {
   return fields.map(f => `- ${map[f] || f}`).join("\n");
 }
 
-function decideStrict(text) {
-  const company = extractCompany(text);
-  const rawTitle =
-    extractJobTitle(text) ||
-    (normalizeText(text).match(/مطلوب\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
-    (normalizeText(text).match(/مطلوبة\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
-    (normalizeText(text).match(/نبحث عن\s+([^\n]{3,80})/i)?.[1]?.trim()) ||
-    "غير مذكور";
+function decideStrict(text, aiData = {}) {
+  const company =
+    aiData.company && aiData.company !== "غير مذكور"
+      ? aiData.company
+      : extractCompany(text);
 
-  const title = cleanJobTitle(rawTitle);
-  const contact = hasContact(text);
-  const salary = hasSalary(text);
+  const title =
+    aiData.title && aiData.title !== "غير مذكور"
+      ? aiData.title
+      : smartTitleFromText(text);
+
+  const contact =
+    aiData.contact && aiData.contact !== "غير مذكور"
+      ? aiData.contact
+      : (hasContact(text) ? "موجود" : "");
+
+  const salary =
+    aiData.salary && aiData.salary !== "غير مذكور"
+      ? aiData.salary
+      : (hasSalary(text) ? "موجود" : "");
 
   const missing = [];
-  if (!company) missing.push("company");
+
+  if (!company || company === "غير مذكور") missing.push("company");
   if (!title || title === "غير مذكور" || !isGoodTitle(title)) missing.push("job_title");
   if (!contact) missing.push("contact");
   if (!salary) missing.push("salary");
 
-  if (missing.length === 0) {
-    return { bucket: "QUDRAT", reason: "all_4_ok" };
+  // اسمح بمرور الإعلان إذا كان ينقصه حقل واحد فقط
+  if (missing.length <= 1) {
+    return { bucket: "QUDRAT", reason: "ai_ok" };
   }
 
   return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
 }
-
 async function extractWithAI(text) {
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -599,7 +608,7 @@ app.post("/webhook", async (req, res) => {
     console.log("CLEANED AI:", cleanedAI);
     console.log("AI DATA:", aiData);
 
-    const decision = decideStrict(text);
+    const decision = decideStrict(text, cleanedAI);
     const targetChatId = decision.bucket === "QUDRAT"
       ? QUDRAT_CHAT_ID
       : REVIEW_CHAT_ID;
