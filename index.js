@@ -332,25 +332,27 @@ function translateReviewReason(reason = "") {
   return fields.map(f => `- ${map[f] || f}`).join("\n");
 }
 
-function decideStrict(text, aiData = {}) {
+function decideStrict(text, aiData = null) {
+  const safeAI = aiData && typeof aiData === "object" ? aiData : {};
+
   const company =
-    aiData.company && aiData.company !== "غير مذكور"
-      ? aiData.company
+    safeAI.company && safeAI.company !== "غير مذكور"
+      ? safeAI.company
       : extractCompany(text);
 
   const title =
-    aiData.title && aiData.title !== "غير مذكور"
-      ? aiData.title
+    safeAI.title && safeAI.title !== "غير مذكور"
+      ? safeAI.title
       : smartTitleFromText(text);
 
   const contact =
-    aiData.contact && aiData.contact !== "غير مذكور"
-      ? aiData.contact
+    safeAI.contact && safeAI.contact !== "غير مذكور"
+      ? safeAI.contact
       : (hasContact(text) ? "موجود" : "");
 
   const salary =
-    aiData.salary && aiData.salary !== "غير مذكور"
-      ? aiData.salary
+    safeAI.salary && safeAI.salary !== "غير مذكور"
+      ? safeAI.salary
       : (hasSalary(text) ? "موجود" : "");
 
   const missing = [];
@@ -360,13 +362,13 @@ function decideStrict(text, aiData = {}) {
   if (!contact) missing.push("contact");
   if (!salary) missing.push("salary");
 
-  // اسمح بمرور الإعلان إذا كان ينقصه حقل واحد فقط
   if (missing.length <= 1) {
     return { bucket: "QUDRAT", reason: "ai_ok" };
   }
 
   return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
 }
+
 async function extractWithAI(text) {
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
