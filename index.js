@@ -66,7 +66,7 @@ mustEnv("REVIEW_CHAT_ID", REVIEW_CHAT_ID);
 mustEnv("QUDRAT_CHAT_ID", QUDRAT_CHAT_ID);
 mustEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
-// ===== Telegram =====
+// ===== Telegram caller =====
 async function tg(method, payload) {
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
     method: "POST",
@@ -93,150 +93,303 @@ function normalizeInline(s = "") {
   return normalizeText(s).replace(/\n+/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
+function stripEmojis(s = "") {
+  return s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim();
+}
+
 function isLikelyPhone(s = "") {
   const x = normalizeInline(s);
-  return /(?:\+?\d[\d\s\-]{7,}\d)/.test(x);
+  return /^(?:\+?\d[\d\s\-]{7,}\d)$/.test(x);
 }
 
 function isLikelyEmail(s = "") {
-  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(normalizeInline(s));
+  return /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(normalizeInline(s));
+}
+
+function isLikelySalaryValue(s = "") {
+  const x = normalizeInline(s);
+  if (!x || x === "غير مذكور") return false;
+  if (isLikelyPhone(x) || isLikelyEmail(x)) return false;
+  if (/(واتساب|whatsapp|gmail|yahoo|outlook|hr@|cv|@)/i.test(x)) return false;
+  return /(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/.test(x);
+}
+
+function cleanupCompanyName(s = "") {
+  let x = normalizeInline(s);
+  x = stripEmojis(x);
+  x = x.replace(/^(?:اسم الشركة|الشركة)\s*[:：]\s*/i, "").trim();
+  x = x.replace(/^(?:تعلن|يعلن)\s+/i, "").trim();
+  x = x.replace(/(عن حاجتها|بحاجتها|لتعيين|لتوظيف|تطلب|المطلوب|الراتب|التواصل|واتساب|طريقة التواصل).*$/i, "").trim();
+  x = x.replace(/[|]/g, " ").trim();
+  x = x.replace(/\s{2,}/g, " ").trim();
+
+  if (!x) return "غير مذكور";
+  if (isLikelyPhone(x) || isLikelyEmail(x)) return "غير مذكور";
+  if (x.length > 80) return "غير مذكور";
+  return x;
+}
+
+function hasContact(text) {
+  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const phone = /(?:\+?\d[\d\s\-]{7,}\d)/;
+  const link = /(https?:\/\/\S+|t\.me\/\S+)/i;
+  return email.test(text) || phone.test(text) || link.test(text);
+}
+
+function hasSalary(text) {
+  const salaryWord = /(راتب|Salary|أجر|الاجر|الأجر)/i;
+  const number = /(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/;
+  return salaryWord.test(text) && number.test(text);
+}
+
+function extractCompany(text) {
+  const normalized = normalizeText(text);
+  const lines = normalized.split("\n").map(x => x.trim()).filter(Boolean);
+
+  let m = normalized.match(/(?:تعلن|يعلن)\s+(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب|مكتبة|مركز|أسواق)\s+([^\n]{2,80})/i);
+  if (m) {
+    const c = cleanupCompanyName(`${m[1]} ${m[2]}`);
+    if (c !== "غير مذكور") return c;
+  }
+
+  for (const line of lines.slice(0, 8)) {
+    m = line.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب|مكتبة|مركز|أسواق)\s+([^\n]{2,80})/i);
+    if (m) {
+      const c = cleanupCompanyName(`${m[1]} ${m[2]}`);
+      if (c !== "غير مذكور") return c;
+    }
+  }
+
+  m = normalized.match(/\b([A-Z][A-Za-z0-9&.\- ]{1,60}\s(?:Agency|Group|Company|Co|Ltd|Institute|Center|Market))\b/);
+  if (m) {
+    const c = cleanupCompanyName(m[1]);
+    if (c !== "غير مذكور") return c;
+  }
+
+  for (const line of lines.slice(0, 12)) {
+    m = line.match(/^(?:اسم الشركة|الشركة)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) {
+      const c = cleanupCompanyName(m[1]);
+      if (c !== "غير مذكور") return c;
+    }
+  }
+
+  return null;
+}
+
+function extractJobTitle(text) {
+  const lines = normalizeText(text)
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  for (const line of lines.slice(0, 12)) {
+    let m = line.match(/^(?:عنوان\s*الوظيف(?:ة|ي)|المسمى الوظيفي|العنوان الوظيفي)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) return m[1].trim();
+
+    m = line.match(/^(?:مطلوب|مطلوبة|فرصة عمل|وظيفة شاغرة|نبحث عن|بحاجة الى|بحاجة إلى|Hiring|Position|Job Title)\s*[:：\-–—]?\s*(.+)$/i);
+    if (m && m[1]) return m[1].trim();
+  }
+
+  return null;
+}
+
+function isBadGenericTitle(x = "") {
+  const t = normalizeInline(x).toLowerCase();
+  return [
+    "غير مذكور",
+    "مطلوب",
+    "مطلوبة",
+    "موظف",
+    "موظفة",
+    "موظفين",
+    "موظفات",
+    "فرصة عمل",
+    "وظيفة",
+    "whatsapp",
+    "واتساب"
+  ].includes(t);
+}
+
+function isGoodTitle(t = "") {
+  if (!t) return false;
+
+  const x = normalizeInline(t).toLowerCase();
+
+  if (isBadGenericTitle(x)) return false;
+  if (x.length < 2 || x.length > 60) return false;
+  if (/(واتساب|whatsapp|للتواصل|اتصال|هاتف|رقم|ايميل|email)/i.test(x)) return false;
+  if (/(راتب|الراتب|الدوام|الموقع|العنوان|الشركة|تفاصيل|التقديم)/i.test(x)) return false;
+  if (/(تعلن|يعلن|شركة|مطعم|معهد|وكالة|مؤسسة|مكتبة|مركز|أسواق)/i.test(x) && x.length > 28) return false;
+
+  return true;
+}
+
+function cleanJobTitle(s = "") {
+  let x = normalizeInline(s);
+
+  x = stripEmojis(x);
+  x = x.replace(/^(مطلوب|مطلوبة|نبحث عن|فرصة عمل|وظيفة شاغرة|بحاجة الى|بحاجة إلى)\s+/i, "").trim();
+  x = x.replace(/\b(ذكور|إناث|للجنسين)\b/gi, "").trim();
+
+  x = x.replace(/\s+(?:في|للعمل في|للعمل لدى|داخل|ضمن)\s+(شركة|مطعم|معهد|وكالة|مؤسسة|مكتب|معمل|مصنع|مكتبة|مركز|أسواق).*/i, "").trim();
+  x = x.replace(/\s+(?:براتب|راتب|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط)\b.*$/i, "").trim();
+  x = x.replace(/[|:\-–—].*$/i, "").trim();
+  x = x.replace(/\s{2,}/g, " ").trim();
+
+  if (isBadGenericTitle(x)) return "غير مذكور";
+  return x || "غير مذكور";
+}
+
+function smartTitleFromText(raw = "") {
+  const lines = normalizeText(raw)
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  const knownRoles = [
+    "موظفين مبيعات",
+    "موظف مبيعات",
+    "موظفة مبيعات",
+    "مروجة مبيعات",
+    "مندوب مبيعات",
+    "مندوبة مبيعات",
+    "كاتب محتوى",
+    "كاتبة محتوى",
+    "Call Center",
+    "خدمة عملاء",
+    "محاسب",
+    "محاسبة",
+    "حسابات",
+    "كاشير",
+    "كابتن صالة",
+    "كابتن حاسبات",
+    "خلفة نراكيل",
+    "استقبال",
+    "موظف استقبال",
+    "موظفة استقبال",
+    "فني صيانة",
+    "مهندس مدني",
+    "مهندس زراعي",
+    "مهندس كهرباء",
+    "صناعات غذائية",
+    "علوم بايلوجي",
+    "عامل",
+    "عامل مطبخ",
+    "سائق توصيل",
+    "سائق توصيل دلفري",
+    "مساعد كوافير",
+    "مدير صفحات",
+    "سوشيال ميديا"
+  ];
+
+  const full = normalizeText(raw);
+  for (const role of knownRoles) {
+    if (full.includes(role)) return role;
+  }
+
+  for (const line of lines.slice(0, 12)) {
+    let m = line.match(/^(?:مطلوب|مطلوبة|نبحث عن|بحاجة الى|بحاجة إلى)\s+(.+)$/i);
+    if (m && m[1]) {
+      const t = cleanJobTitle(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
+
+    m = line.match(/^(?:المسمى الوظيفي|عنوان الوظيفة|العنوان الوظيفي)\s*[:：]\s*(.+)$/i);
+    if (m && m[1]) {
+      const t = cleanJobTitle(m[1]);
+      if (isGoodTitle(t)) return t;
+    }
+  }
+
+  return "غير مذكور";
+}
+
+function smartSalary(raw = "") {
+  const lines = normalizeText(raw)
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const m = line.match(/(?:الراتب|راتب|الأجر|الاجر|الأجر الأساسي|الراتب الأساسي)\s*[:：\-–—]?\s*([^\n\r]{2,100})/i);
+    if (m && m[1]) return normalizeInline(m[1]);
+  }
+
+  const m2 = normalizeText(raw).match(/(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/);
+  if (m2 && m2[1]) return normalizeInline(m2[1]);
+
+  return "غير مذكور";
 }
 
 function smartContact(raw = "") {
   const phones = raw.match(/\+?\d[\d\s\-]{7,}\d/g) || [];
   const emails = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig) || [];
+
   const list = [...new Set([...phones, ...emails])].map(x => normalizeInline(x));
   return list.length ? list.join(" | ") : "غير مذكور";
 }
 
-function isGoodEnoughJob(job = {}) {
-  const title = normalizeInline(job.title || "");
-  const company = normalizeInline(job.company || "");
-  const contact = normalizeInline(job.contact || "");
-  const salary = normalizeInline(job.salary || "");
-
-  // الأساسيات: عنوان + تواصل
-  if (!title || title === "غير مذكور") return false;
-  if (!contact || contact === "غير مذكور") return false;
-
-  // اسم شركة غير إجباري 100% لكنه يفضّل
-  // الراتب غير إجباري 100%
-  // لكن إذا title أو company عبارة عن رقم أو واتساب فهو سيء
-  if (isLikelyPhone(title) || isLikelyEmail(title)) return false;
-  if (/^(واتساب|whatsapp|وظيفة|فرصة عمل|مطلوب|مطلوبة)$/i.test(title)) return false;
-
-  if (company && company !== "غير مذكور" && (isLikelyPhone(company) || isLikelyEmail(company))) {
-    job.company = "غير مذكور";
-  }
-
-  if (salary && salary !== "غير مذكور" && isLikelyPhone(salary)) {
-    job.salary = "غير مذكور";
-  }
-
-  return true;
-}
-
-function cleanupAIJob(job = {}, rawText = "") {
-  const cleaned = {
-    title: normalizeInline(job.title || "غير مذكور"),
-    company: normalizeInline(job.company || "غير مذكور"),
-    salary: normalizeInline(job.salary || "غير مذكور"),
-    contact: normalizeInline(job.contact || "غير مذكور"),
-    category: normalizeInline(job.category || "غير مذكور"),
-    location: normalizeInline(job.location || "غير مذكور"),
-    shift: normalizeInline(job.shift || "غير مذكور"),
-    notes: normalizeInline(job.notes || "غير مذكور"),
+function translateReviewReason(reason = "") {
+  const map = {
+    company: "اسم الشركة غير واضح أو غير موجود",
+    job_title: "المسمى الوظيفي غير واضح أو غير موجود",
+    contact: "معلومات التواصل غير موجودة",
+    salary: "الراتب غير موجود أو غير واضح"
   };
 
-  if (!cleaned.contact || cleaned.contact === "غير مذكور") {
-    cleaned.contact = smartContact(rawText);
-  }
+  if (!reason.startsWith("missing:")) return reason;
 
-  if (cleaned.salary && cleaned.salary !== "غير مذكور" && isLikelyPhone(cleaned.salary)) {
-    cleaned.salary = "غير مذكور";
-  }
+  const fields = reason
+    .replace("missing:", "")
+    .split(",")
+    .map(x => x.trim())
+    .filter(Boolean);
 
-  if (cleaned.company && cleaned.company !== "غير مذكور" && isLikelyPhone(cleaned.company)) {
-    cleaned.company = "غير مذكور";
-  }
-
-  if (cleaned.title && cleaned.title !== "غير مذكور" && isLikelyPhone(cleaned.title)) {
-    cleaned.title = "غير مذكور";
-  }
-
-  if (!cleaned.contact || cleaned.contact === "غير مذكور") {
-    cleaned.contact = smartContact(rawText);
-  }
-
-  return cleaned;
+  return fields.map(f => `- ${map[f] || f}`).join("\n");
 }
 
-function buildPublishedText(job, rawText) {
-  const parts = [
-    "📌 فرصة عمل",
-    "",
-    `المسمى الوظيفي: ${job.title || "غير مذكور"}`,
-    `اسم الشركة: ${job.company || "غير مذكور"}`,
-    `الراتب: ${job.salary || "غير مذكور"}`,
-    `طريقة التواصل: ${job.contact || "غير مذكور"}`
-  ];
+function decideStrict(text, aiData = null) {
+  const safeAI = aiData && typeof aiData === "object" ? aiData : {};
 
-  if (job.location && job.location !== "غير مذكور") {
-    parts.push(`الموقع: ${job.location}`);
-  }
+  const company =
+    safeAI.company && safeAI.company !== "غير مذكور"
+      ? safeAI.company
+      : extractCompany(text);
 
-  if (job.shift && job.shift !== "غير مذكور") {
-    parts.push(`الدوام/الشفت: ${job.shift}`);
-  }
+  const title =
+    safeAI.title && safeAI.title !== "غير مذكور"
+      ? safeAI.title
+      : smartTitleFromText(text);
 
-  if (job.category && job.category !== "غير مذكور") {
-    parts.push(`التصنيف: ${job.category}`);
-  }
+  const contact =
+    safeAI.contact && safeAI.contact !== "غير مذكور"
+      ? safeAI.contact
+      : (hasContact(text) ? "موجود" : "");
 
-  if (job.notes && job.notes !== "غير مذكور") {
-    parts.push(`ملاحظات: ${job.notes}`);
-  }
+  const salary =
+    safeAI.salary && safeAI.salary !== "غير مذكور" && isLikelySalaryValue(safeAI.salary)
+      ? safeAI.salary
+      : (hasSalary(text) ? "موجود" : "");
 
-  parts.push("", "──────────────", "", "التفاصيل:", rawText);
-  return parts.join("\n");
-}
-
-function buildReviewText(rawText, reason, aiJobs = []) {
-  let jobsPreview = "";
-
-  if (Array.isArray(aiJobs) && aiJobs.length) {
-    const previewLines = aiJobs.slice(0, 5).map((job, i) => {
-      return `${i + 1}- العنوان: ${job.title || "غير مذكور"} | الشركة: ${job.company || "غير مذكور"} | التواصل: ${job.contact || "غير مذكور"}`;
-    });
-    jobsPreview = `\n\nنتيجة AI الأولية:\n${previewLines.join("\n")}`;
-  }
-
-  return `📋 إعلان بحاجة مراجعة
-
-سبب التحويل إلى كروب المراجعة:
-${reason}${jobsPreview}
-
-──────────────
-
-نص الإعلان:
-${rawText}`;
-}
-
-function summarizeReviewReason(jobs = []) {
-  if (!jobs.length) return "لم يتمكن الذكاء الاصطناعي من استخراج وظائف صالحة";
-
-  const first = jobs[0] || {};
   const missing = [];
 
-  if (!first.title || first.title === "غير مذكور") missing.push("المسمى الوظيفي غير واضح أو غير موجود");
-  if (!first.company || first.company === "غير مذكور") missing.push("اسم الشركة غير واضح أو غير موجود");
-  if (!first.contact || first.contact === "غير مذكور") missing.push("معلومات التواصل غير موجودة");
+  if (!company || company === "غير مذكور") missing.push("company");
+  if (!title || title === "غير مذكور" || !isGoodTitle(title)) missing.push("job_title");
+  if (!contact) missing.push("contact");
+  if (!salary) missing.push("salary");
 
-  if (!missing.length) return "النتيجة المستخرجة غير موثوقة وتحتاج مراجعة";
-  return missing.map(x => `- ${x}`).join("\n");
+  if (missing.length === 0) {
+    return { bucket: "QUDRAT", reason: "ai_ok" };
+  }
+
+  if (missing.length === 1 && missing[0] === "salary") {
+    return { bucket: "QUDRAT", reason: "salary_missing_but_ok" };
+  }
+
+  return { bucket: "REVIEW", reason: "missing: " + missing.join(", ") };
 }
 
-// ===== AI extraction =====
 async function extractWithAI(text) {
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -254,41 +407,37 @@ async function extractWithAI(text) {
               {
                 type: "input_text",
                 text: `
-أنت خبير جدًا في تحليل إعلانات الوظائف العربية، خاصة الإعلانات العراقية غير المرتبة.
+أنت خبير في تحليل إعلانات الوظائف العربية، خاصة الإعلانات العراقية غير المرتبة.
 
-مهمتك:
-- اقرأ الإعلان كاملًا
-- استخرج جميع الوظائف الموجودة داخله، وليس وظيفة واحدة فقط
-- إذا كان الإعلان يحتوي أكثر من وظيفة، أرجعها كلها داخل jobs
+استخرج فقط الحقول التالية بصيغة JSON:
+title
+company
+salary
+contact
+category
 
-أرجع JSON فقط بهذا الشكل:
-{
-  "jobs": [
-    {
-      "title": "اسم الوظيفة فقط",
-      "company": "اسم الجهة أو الشركة",
-      "salary": "الراتب أو غير مذكور",
-      "contact": "رقم الهاتف أو الإيميل أو غير مذكور",
-      "category": "تصنيف عام مثل مبيعات / خدمة عملاء / إداري / فني / سائق / تجميل / مطعم / غير مذكور",
-      "location": "الموقع أو غير مذكور",
-      "shift": "الدوام أو الشفت أو غير مذكور",
-      "notes": "أي ملاحظات مهمة قصيرة أو غير مذكور"
-    }
-  ]
-}
-
-قواعد دقيقة:
-1) title يجب أن يكون اسم الوظيفة فقط، وليس جملة كاملة.
-2) لا تجعل اسم المكان أو المعهد أو الشركة جزءًا من title إلا إذا كان جزءًا من اسم الوظيفة فعلًا.
-3) إذا الإعلان يحتوي عدة وظائف، استخرجها كلها.
-4) إذا كانت هناك شركة أو جهة واضحة مثل:
-شركة / وكالة / معهد / مطعم / مؤسسة / مكتب / مكتبة / مركز / Market / Agency / Group
-فضعها في company.
-5) إذا لم يكن الراتب واضحًا فلا تخمّن، اكتب "غير مذكور".
-6) لا تضع رقم الهاتف مكان الراتب.
-7) إذا لم توجد معلومات تواصل صريحة، اكتب "غير مذكور".
-8) لا تكتب أي شرح خارج JSON.
-9) لا تُرجع markdown أو code fence.
+تعليمات دقيقة جدًا:
+1) title يجب أن يكون اسم الوظيفة فقط، وليس جملة طويلة.
+2) إذا كان النص مثل:
+"مطلوب موظفين مبيعات"
+فالعنوان يجب أن يكون:
+"موظفين مبيعات"
+3) إذا كان النص مثل:
+"مطلوب موظفات في معهد..."
+فلا تجعل اسم المكان جزءًا من title.
+4) إذا كان النص مثل:
+"تعلن شركة البيت العراقي عن حاجتها الى موظفين مبيعات"
+فالشركة:
+"شركة البيت العراقي"
+والعنوان:
+"موظفين مبيعات"
+5) إذا كان النص يحتوي جهة مثل:
+معهد / وكالة / شركة / مطعم / مؤسسة / مكتب / مكتبة / مركز / أسواق
+فحاول استخراجها كـ company.
+6) إذا كان الراتب غير واضح فاكتب "غير مذكور"، ولا تضع رقم الهاتف مكان الراتب.
+7) إذا لم تجد قيمة واضحة اكتب:
+"غير مذكور"
+8) لا ترجع أي شرح. فقط JSON مطابق للمخطط.
                 `.trim()
               }
             ]
@@ -306,31 +455,18 @@ async function extractWithAI(text) {
         text: {
           format: {
             type: "json_schema",
-            name: "job_ads_extraction",
+            name: "job_ad_extraction",
             schema: {
               type: "object",
               additionalProperties: false,
               properties: {
-                jobs: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                      title: { type: "string" },
-                      company: { type: "string" },
-                      salary: { type: "string" },
-                      contact: { type: "string" },
-                      category: { type: "string" },
-                      location: { type: "string" },
-                      shift: { type: "string" },
-                      notes: { type: "string" }
-                    },
-                    required: ["title", "company", "salary", "contact", "category", "location", "shift", "notes"]
-                  }
-                }
+                title: { type: "string" },
+                company: { type: "string" },
+                salary: { type: "string" },
+                contact: { type: "string" },
+                category: { type: "string" }
               },
-              required: ["jobs"]
+              required: ["title", "company", "salary", "contact", "category"]
             },
             strict: true
           }
@@ -342,7 +478,7 @@ async function extractWithAI(text) {
 
     if (!response.ok) {
       console.log("OpenAI API error:", data);
-      return { jobs: [] };
+      return null;
     }
 
     let content = data.output_text || "";
@@ -363,17 +499,151 @@ async function extractWithAI(text) {
 
     if (!content) {
       console.log("OpenAI empty output:", data);
-      return { jobs: [] };
+      return null;
     }
 
-    const parsed = JSON.parse(content);
-    if (!parsed || !Array.isArray(parsed.jobs)) return { jobs: [] };
-
-    return parsed;
+    return JSON.parse(content);
   } catch (err) {
     console.log("AI extract error:", err);
-    return { jobs: [] };
+    return null;
   }
+}
+
+const BAD_TITLES = [
+  "whatsapp",
+  "واتساب",
+  "تحدث",
+  "كتابة",
+  "تحدث وكتابة",
+  "فرصة عمل",
+  "وظيفة",
+  "مطلوب",
+  "مطلوبة",
+  "مطلوب موظف",
+  "مطلوب موظفة",
+  "مطلوب موظفين",
+  "مطلوب موظفات",
+  "موظف",
+  "موظفة",
+  "موظفين",
+  "موظفات",
+  "للتواصل",
+  "ايميل",
+  "البريد",
+  "الرقم"
+];
+
+function cleanAIResult(aiData, rawText = "") {
+  if (!aiData || typeof aiData !== "object") return null;
+
+  let title = normalizeInline(String(aiData.title || "").trim());
+  let company = normalizeInline(String(aiData.company || "").trim());
+  let salary = normalizeInline(String(aiData.salary || "").trim());
+  let contact = normalizeInline(String(aiData.contact || "").trim());
+  let category = normalizeInline(String(aiData.category || "").trim());
+
+  const lowerTitle = title.toLowerCase();
+
+  if (
+    !title ||
+    BAD_TITLES.includes(lowerTitle) ||
+    /^(whatsapp|واتساب|تحدث|كتابة|تحدث وكتابة|فرصة عمل|وظيفة|مطلوب|مطلوبة|موظف|موظفة|موظفين|موظفات)$/i.test(title)
+  ) {
+    title = "غير مذكور";
+  }
+
+  if (title !== "غير مذكور") {
+    title = normalizeInline(stripEmojis(title));
+  }
+
+  if (!isGoodTitle(title)) {
+    const fallback = smartTitleFromText(rawText);
+    title = isGoodTitle(fallback) ? fallback : "غير مذكور";
+  }
+
+  company = cleanupCompanyName(company);
+  if (
+    company === "غير مذكور" ||
+    /(واتساب|whatsapp|للتواصل|الاتصال|الرقم|ايميل|email|\d{7,})/i.test(company)
+  ) {
+    company = extractCompany(rawText) || "غير مذكور";
+  }
+
+  if (
+    company !== "غير مذكور" &&
+    title !== "غير مذكور" &&
+    normalizeInline(company).toLowerCase() === normalizeInline(title).toLowerCase()
+  ) {
+    const fallbackCompany = extractCompany(rawText);
+    if (fallbackCompany) company = fallbackCompany;
+  }
+
+  if (!contact || contact === "غير مذكور") {
+    contact = smartContact(rawText);
+  }
+
+  if (
+    !salary ||
+    salary === "غير مذكور" ||
+    !isLikelySalaryValue(salary)
+  ) {
+    salary = smartSalary(rawText);
+  }
+
+  if (!isLikelySalaryValue(salary)) {
+    salary = "غير مذكور";
+  }
+
+  if (!category) {
+    category = "غير مذكور";
+  }
+
+  return { title, company, salary, contact, category };
+}
+
+function buildStructuredAd(rawText, cleanedAI) {
+  let title = "غير مذكور";
+  if (cleanedAI?.title && cleanedAI.title !== "غير مذكور") {
+    title = normalizeInline(cleanedAI.title);
+  } else {
+    title = smartTitleFromText(rawText);
+  }
+
+  if (!title || title === "غير مذكور" || !isGoodTitle(title)) {
+    title = smartTitleFromText(rawText);
+  }
+
+  let company = "غير مذكور";
+  if (cleanedAI?.company && cleanedAI.company !== "غير مذكور") {
+    company = cleanupCompanyName(cleanedAI.company);
+  } else {
+    company = extractCompany(rawText) || "غير مذكور";
+  }
+
+  if (
+    company !== "غير مذكور" &&
+    title !== "غير مذكور" &&
+    normalizeInline(company).toLowerCase() === normalizeInline(title).toLowerCase()
+  ) {
+    const fallbackCompany = extractCompany(rawText);
+    if (fallbackCompany) company = fallbackCompany;
+  }
+
+  let salary =
+    cleanedAI?.salary && cleanedAI.salary !== "غير مذكور" && isLikelySalaryValue(cleanedAI.salary)
+      ? normalizeInline(cleanedAI.salary)
+      : smartSalary(rawText);
+
+  if (!salary || !isLikelySalaryValue(salary)) {
+    salary = "غير مذكور";
+  }
+
+  const contact =
+    cleanedAI?.contact && cleanedAI.contact !== "غير مذكور"
+      ? normalizeInline(cleanedAI.contact)
+      : smartContact(rawText);
+
+  return { title, company, salary, contact };
 }
 
 // ===== Webhook =====
@@ -411,67 +681,60 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    const insertRaw = db.prepare(`
+    const insertRawResult = db.prepare(`
       INSERT INTO ads_raw (hash, raw_text, source_chat_id, source_message_id)
       VALUES (?, ?, ?, ?)
-    `);
+    `).run(hash, rawText, String(chatId), String(msg.message_id || ""));
 
-    const rawInsertResult = insertRaw.run(
-      hash,
-      rawText,
-      String(chatId),
-      String(msg.message_id || "")
-    );
-
-    const rawAdId = rawInsertResult.lastInsertRowid;
+    const rawAdId = insertRawResult.lastInsertRowid;
+    const text = rawText;
 
     console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID, MODEL_NAME });
     console.log("✅ /webhook HIT", new Date().toISOString());
-    console.log("✅ msg:", { chatId, preview: normalizeInline(rawText).slice(0, 120) });
+    console.log("✅ msg:", { chatId, preview: normalizeInline(text).slice(0, 120) });
 
-    const aiResult = await extractWithAI(rawText);
-    const rawJobs = Array.isArray(aiResult.jobs) ? aiResult.jobs : [];
-    const cleanedJobs = rawJobs.map(job => cleanupAIJob(job, rawText));
+    const aiData = await extractWithAI(rawText);
+    const cleanedAI = cleanAIResult(aiData, rawText);
 
-    console.log("AI RESULT:", aiResult);
-    console.log("CLEANED JOBS:", cleanedJobs);
+    console.log("CLEANED AI:", cleanedAI);
+    console.log("AI DATA:", aiData);
 
-    const validJobs = cleanedJobs.filter(job => isGoodEnoughJob(job));
+    db.prepare(`
+      UPDATE ads_raw
+      SET ai_output_json = ?, extract_status = ?
+      WHERE id = ?
+    `).run(JSON.stringify(aiData || null), cleanedAI ? "done" : "failed", rawAdId);
 
-    if (!validJobs.length) {
-      const reviewReason = summarizeReviewReason(cleanedJobs);
+    const decision = decideStrict(text, cleanedAI);
+    const targetChatId = decision.bucket === "QUDRAT"
+      ? QUDRAT_CHAT_ID
+      : REVIEW_CHAT_ID;
 
-      db.prepare(`
-        INSERT INTO ads_review (raw_ad_id, hash, raw_text, ai_output_json, review_reason)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(
-        rawAdId,
-        hash,
-        rawText,
-        JSON.stringify(aiResult),
-        reviewReason
-      );
+    console.log("decision:", decision, "target:", targetChatId);
 
-      const finalText = buildReviewText(rawText, reviewReason, cleanedJobs);
+    let finalText = text;
+
+    if (decision.bucket === "QUDRAT") {
+      const structured = buildStructuredAd(rawText, cleanedAI);
+
+      finalText = `📌 فرصة عمل
+
+المسمى الوظيفي: ${structured.title}
+اسم الشركة: ${structured.company}
+الراتب: ${structured.salary}
+طريقة التواصل: ${structured.contact}
+
+──────────────
+
+التفاصيل:
+${rawText}`;
 
       const tgRes = await tg("sendMessage", {
-        chat_id: REVIEW_CHAT_ID,
+        chat_id: targetChatId,
         text: finalText,
       });
 
-      console.log("SEND RESULT REVIEW:", JSON.stringify(tgRes, null, 2));
-      return;
-    }
-
-    for (const job of validJobs) {
-      const finalText = buildPublishedText(job, rawText);
-
-      const tgRes = await tg("sendMessage", {
-        chat_id: QUDRAT_CHAT_ID,
-        text: finalText,
-      });
-
-      console.log("SEND RESULT QUDRAT:", JSON.stringify(tgRes, null, 2));
+      console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
 
       db.prepare(`
         INSERT INTO ads_published (
@@ -482,22 +745,46 @@ app.post("/webhook", async (req, res) => {
       `).run(
         rawAdId,
         hash,
-        job.title || "غير مذكور",
-        job.category || "غير مذكور",
-        job.company || "غير مذكور",
-        job.salary || "غير مذكور",
-        job.contact || "غير مذكور",
+        structured.title || "غير مذكور",
+        cleanedAI?.category || "غير مذكور",
+        structured.company || "غير مذكور",
+        structured.salary || "غير مذكور",
+        structured.contact || "غير مذكور",
         rawText,
         String(QUDRAT_CHAT_ID),
         String(tgRes?.result?.message_id || "")
       );
-    }
+    } else {
+      const reviewReason = translateReviewReason(decision.reason);
 
-    db.prepare(`
-      UPDATE ads_raw
-      SET ai_output_json = ?, extract_status = 'done'
-      WHERE id = ?
-    `).run(JSON.stringify(aiResult), rawAdId);
+      finalText = `📋 إعلان بحاجة مراجعة
+
+سبب التحويل إلى كروب المراجعة:
+${reviewReason}
+
+──────────────
+
+نص الإعلان:
+${rawText}`;
+
+      const tgRes = await tg("sendMessage", {
+        chat_id: targetChatId,
+        text: finalText,
+      });
+
+      console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
+
+      db.prepare(`
+        INSERT INTO ads_review (raw_ad_id, hash, raw_text, ai_output_json, review_reason)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        rawAdId,
+        hash,
+        rawText,
+        JSON.stringify(aiData || null),
+        reviewReason
+      );
+    }
 
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
