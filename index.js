@@ -97,20 +97,32 @@ function stripEmojis(s = "") {
 }
 
 function extractCompany(text) {
-  const lines = normalizeText(text)
-    .split("\n")
-    .map(x => x.trim())
-    .filter(Boolean);
 
-  for (const line of lines.slice(0, 12)) {
-    const m = line.match(/^(?:اسم الشركة|الشركة)\s*[:：]\s*(.+)$/i);
-    if (m && m[1]) {
-      let c = m[1].trim();
-      c = c.replace(/(الراتب|طريقة التواصل|التواصل|الدوام|الموقع|العنوان|التفاصيل).*$/i, "").trim();
-      c = c.replace(/[|]/g, " ").trim();
-      if (c && c.length <= 60) return c;
+  const normalized = normalizeText(text);
+
+  // 1️⃣ صيغة: تعلن شركة ...
+  let m = normalized.match(/تعلن\s+(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع)\s+([^\n]{2,60})/i);
+  if (m) return `${m[1]} ${m[2]}`.trim();
+
+  // 2️⃣ صيغة: شركة ...
+  m = normalized.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع)\s+([^\n]{2,60})/im);
+  if (m) return `${m[1]} ${m[2]}`.trim();
+
+  // 3️⃣ شركة إنكليزية مثل
+  // More Agency
+  m = normalized.match(/([A-Z][A-Za-z]+\s+(Agency|Group|Company|Co|Ltd))/);
+  if (m) return m[0];
+
+  // 4️⃣ fallback
+  const lines = normalized.split("\n").slice(0,6);
+  for (const line of lines) {
+    if (line.length < 60 && /(agency|group|company)/i.test(line)) {
+      return line.trim();
     }
   }
+
+  return null;
+}
 
   for (const line of lines.slice(0, 12)) {
     const m = line.match(/^(?:شركة|شركه|مجموعة شركات|مجموعة|مؤسسة|مصنع|معمل|مجمع|مكتب)\s+(.+)$/i);
