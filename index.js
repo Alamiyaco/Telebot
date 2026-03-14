@@ -601,7 +601,7 @@ function cleanAIResult(aiData, rawText = "") {
   return { title, company, salary, contact, category };
 }
 
-function buildStructuredAd(rawText, cleanedAI) {
+function finalizeFields(rawText, cleanedAI) {
   let title = "غير مذكور";
   if (cleanedAI?.title && cleanedAI.title !== "غير مذكور") {
     title = normalizeInline(cleanedAI.title);
@@ -620,17 +620,31 @@ function buildStructuredAd(rawText, cleanedAI) {
     company = extractCompany(rawText) || "غير مذكور";
   }
 
+  const fallbackCompany = extractCompany(rawText) || "غير مذكور";
+
   if (
     company !== "غير مذكور" &&
     title !== "غير مذكور" &&
     normalizeInline(company).toLowerCase() === normalizeInline(title).toLowerCase()
   ) {
-    const fallbackCompany = extractCompany(rawText);
-    if (fallbackCompany) company = fallbackCompany;
+    if (fallbackCompany !== "غير مذكور") {
+      company = fallbackCompany;
+    }
+  }
+
+  if (
+    company === "غير مذكور" ||
+    /^(call center|sales|accountant|cashier|driver)$/i.test(normalizeInline(company))
+  ) {
+    if (fallbackCompany !== "غير مذكور") {
+      company = fallbackCompany;
+    }
   }
 
   let salary =
-    cleanedAI?.salary && cleanedAI.salary !== "غير مذكور" && isLikelySalaryValue(cleanedAI.salary)
+    cleanedAI?.salary &&
+    cleanedAI.salary !== "غير مذكور" &&
+    isLikelySalaryValue(cleanedAI.salary)
       ? normalizeInline(cleanedAI.salary)
       : smartSalary(rawText);
 
@@ -644,6 +658,10 @@ function buildStructuredAd(rawText, cleanedAI) {
       : smartContact(rawText);
 
   return { title, company, salary, contact };
+}
+
+function buildStructuredAd(rawText, cleanedAI) {
+  return finalizeFields(rawText, cleanedAI);
 }
 
 // ===== Webhook =====
@@ -785,7 +803,6 @@ ${rawText}`;
         reviewReason
       );
     }
-
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
   }
