@@ -644,10 +644,21 @@ ${JSON.stringify(hints, null, 2)}
 
     const data = await response.json();
 
-    if (!response.ok) {
-      console.log("OpenAI API error:", data);
-      return null;
-    }
+if (!response.ok) {
+  console.log("OpenAI API error:", {
+    status: response.status,
+    model: MODEL_NAME,
+    data
+  });
+  return {
+    __ai_failed__: true,
+    __error__: JSON.stringify({
+      status: response.status,
+      model: MODEL_NAME,
+      data
+    }).slice(0, 1500)
+  };
+}
 
     let content = data.output_text || "";
 
@@ -706,7 +717,9 @@ function cleanAIResult(aiData, rawText = "", cleanText = "") {
   if (company === "غير مذكور") {
     company = hints.company_hint;
   }
-
+if (!aiData || typeof aiData !== "object") return null;
+if (aiData.__ai_failed__) return null;
+  
   if (location === "غير مذكور") {
     location = hints.location_hint;
   }
@@ -1017,22 +1030,41 @@ app.post("/webhook", async (req, res) => {
 
     if (!finalResult) {
       const tgRes = await tg("sendMessage", {
-        chat_id: REVIEW_CHAT_ID,
-        text: `📋 إعلان بحاجة مراجعة\n\nسبب التحويل:\n- فشل التحليل الآلي\n\n──────────────\n${rawText}`
-      });
+  chat_id: targetChatId,
+  text: finalText
+});
 
-      db.prepare(`
-        INSERT INTO ads_review (raw_ad_id, hash, raw_text, clean_text, ai_output_json, final_output_json, review_reason)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        rawAdId,
-        hash,
-        rawText,
-        cleanText,
-        JSON.stringify(aiData || null),
-        JSON.stringify(finalResult || null),
-        "AI failed"
-      );
+if (!tgRes?.ok) {
+  const failReason = `publish_send_failed:${tgRes?.description || "unknown_telegram_error"}`;
+
+  await tg("sendMessage", {
+    chat_id: REVIEW_CHAT_ID,
+    text: buildReviewText(
+      failReason,
+      rawText,
+      cleanText,
+      finalResult,
+      validation
+    )
+  });
+
+  db.prepare(`
+    INSERT INTO ads_review (
+      raw_ad_id, hash, raw_text, clean_text, ai_output_json, final_output_json, review_reason
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    rawAdId,
+    hash,
+    rawText,
+    cleanText,
+    JSON.stringify(aiData || null),
+    JSON.stringify(finalResult || null),
+    failReason
+  );
+
+  return;
+}
 
       console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
       return;
