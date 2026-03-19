@@ -68,9 +68,7 @@ const REVIEW_CHAT_ID = Number(process.env.REVIEW_CHAT_ID || 0);
 const QUDRAT_CHAT_ID = Number(process.env.QUDRAT_CHAT_ID || 0);
 const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || "").trim();
 
-// الأفضل الافتراضي يكون gpt-4.1
 const MODEL_NAME = (process.env.MODEL_NAME || "gpt-4.1").trim();
-
 const AUTO_PUBLISH_MIN_SCORE = Number(process.env.AUTO_PUBLISH_MIN_SCORE || 85);
 const REVIEW_MIN_SCORE = Number(process.env.REVIEW_MIN_SCORE || 65);
 
@@ -88,15 +86,20 @@ mustEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 // Telegram
 // =========================
 async function tg(method, payload) {
-  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload || {})
-  });
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
 
-  const json = await res.json().catch(() => ({}));
-  if (!json.ok) console.log("TG error:", json);
-  return json;
+    const json = await res.json().catch(() => ({}));
+    if (!json.ok) console.log("TG error:", json);
+    return json;
+  } catch (err) {
+    console.log("TG fetch error:", err);
+    return { ok: false, description: String(err) };
+  }
 }
 
 // =========================
@@ -140,10 +143,6 @@ function linesOf(text = "") {
     .split("\n")
     .map(x => x.trim())
     .filter(Boolean);
-}
-
-function hasArabic(s = "") {
-  return /[\u0600-\u06FF]/.test(String(s));
 }
 
 function cleanTelegramAd(raw = "") {
@@ -225,7 +224,7 @@ function isLikelySalaryValue(s = "") {
   if (!x || x === "غير مذكور") return false;
   if (isLikelyPhone(x) || isLikelyEmail(x)) return false;
   if (/(واتساب|whatsapp|gmail|yahoo|outlook|cv|@|telegram|t\.me)/i.test(x)) return false;
-  return /(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/.test(x) || /(دينار|دولار|\$|IQD|USD|شهري|يومي)/i.test(x);
+  return /(\d{1,3}(?:[,\.\s]\d{3})+|\d{5,})/.test(x) || /(دينار|دولار|\$|IQD|USD|شهري|يومي|نسبة)/i.test(x);
 }
 
 function smartSalary(text = "") {
@@ -240,7 +239,7 @@ function smartSalary(text = "") {
   }
 
   for (const line of lines) {
-    if (/(دينار|دولار|\$|IQD|USD)/i.test(line) && isLikelySalaryValue(line)) {
+    if (/(دينار|دولار|\$|IQD|USD|نسبة)/i.test(line) && isLikelySalaryValue(line)) {
       return normalizeInline(line);
     }
   }
@@ -257,7 +256,7 @@ const IRAQ_CITIES = [
 const BAGHDAD_AREAS = [
   "الكرادة", "المنصور", "الجادرية", "الزيونة", "العامرية", "الدورة", "الكاظمية", "الأعظمية",
   "الاعظمية", "اليرموك", "الشعب", "الغدير", "المنطقة الخضراء", "ساحة عدن", "البنوك", "السيدية",
-  "الحارثية", "العدل", "حي الجامعة", "بغداد الجديدة"
+  "الحارثية", "العدل", "حي الجامعة", "بغداد الجديدة", "البياع", "البكرية"
 ];
 
 function extractLocation(text = "") {
@@ -265,7 +264,7 @@ function extractLocation(text = "") {
   const lines = linesOf(text);
 
   for (const line of lines.slice(0, 15)) {
-    const m = line.match(/(?:الموقع|العنوان|مكان العمل|موقع العمل|location)\s*[:：\-–—]?\s*(.+)$/i);
+    const m = line.match(/(?:الموقع|العنوان|مكان العمل|موقع العمل|location|مكان العمل)\s*[:：\-–—]?\s*(.+)$/i);
     if (m?.[1]) return normalizeInline(m[1]);
   }
 
@@ -277,7 +276,7 @@ function extractLocation(text = "") {
     if (x.includes(area)) return area;
   }
 
-  const m = x.match(/(?:في|داخل|ضمن)\s+(بغداد|البصرة|أربيل|اربيل|دهوك|السليمانية|النجف|كربلاء|الموصل|كركوك|الكرادة|المنصور|الجادرية|الزيونة)/i);
+  const m = x.match(/(?:في|داخل|ضمن|منطقة)\s+(بغداد|البصرة|أربيل|اربيل|دهوك|السليمانية|النجف|كربلاء|الموصل|كركوك|الكرادة|المنصور|الجادرية|الزيونة|اليرموك|السيدية|البياع|البكرية)/i);
   if (m?.[1]) return normalizeInline(m[1]);
 
   return "غير مذكور";
@@ -307,14 +306,14 @@ function extractCompany(text = "") {
   const normalized = normalizeText(text);
   const lines = linesOf(text);
 
-  let m = normalized.match(/(?:تعلن|يعلن)\s+(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب|مكتبة|مركز|أسواق|مستشفى|عيادة)\s+([^\n]{2,80})/i);
+  let m = normalized.match(/(?:تعلن|يعلن)\s+(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب|مكتبة|مركز|أسواق|مستشفى|عيادة|صالون|وكالة)\s+([^\n]{2,80})/i);
   if (m) {
     const c = cleanupCompanyName(`${m[1]} ${m[2]}`);
     if (c !== "غير مذكور") return c;
   }
 
   for (const line of lines.slice(0, 12)) {
-    m = line.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب|مكتبة|مركز|أسواق|مستشفى|عيادة)\s+([^\n]{2,80})/i);
+    m = line.match(/^(شركة|مؤسسة|مجموعة|مطعم|مقهى|معمل|مصنع|معهد|وكالة|مكتب|مكتبة|مركز|أسواق|مستشفى|عيادة|صالون)\s+([^\n]{2,80})/i);
     if (m) {
       const c = cleanupCompanyName(`${m[1]} ${m[2]}`);
       if (c !== "غير مذكور") return c;
@@ -322,7 +321,7 @@ function extractCompany(text = "") {
   }
 
   for (const line of lines.slice(0, 12)) {
-    m = line.match(/^(?:اسم الشركة|الشركة)\s*[:：]\s*(.+)$/i);
+    m = line.match(/^(?:اسم الشركة|الشركة|اسم الصالون|اسم المركز)\s*[:：]\s*(.+)$/i);
     if (m?.[1]) {
       const c = cleanupCompanyName(m[1]);
       if (c !== "غير مذكور") return c;
@@ -361,8 +360,8 @@ function cleanJobTitle(s = "") {
   x = x
     .replace(/^(مطلوب|مطلوبة|نبحث عن|فرصة عمل|وظيفة شاغرة|بحاجة الى|بحاجة إلى|Hiring|Position)\s+/i, "")
     .replace(/^(?:تعلن شركة|يعلن مكتب|تعلن مؤسسة)\s+/i, "")
-    .replace(/\b(ذكور|إناث|للجنسين|للذكور|للاناث|للإناث)\b/gi, "")
-    .replace(/\s+(?:في|للعمل في|للعمل لدى|داخل|ضمن)\s+(شركة|مطعم|معهد|وكالة|مؤسسة|مكتب|معمل|مصنع|مكتبة|مركز|أسواق|مستشفى|عيادة).*/i, "")
+    .replace(/\b(ذكور|إناث|للجنسين|للذكور|للاناث|للإناث|أنثى|ذكر)\b/gi, "")
+    .replace(/\s+(?:في|للعمل في|للعمل لدى|داخل|ضمن)\s+(شركة|مطعم|معهد|وكالة|مؤسسة|مكتب|معمل|مصنع|مكتبة|مركز|أسواق|مستشفى|عيادة|صالون).*/i, "")
     .replace(/\s+(?:براتب|راتب|الراتب|الدوام|الموقع|العنوان|التواصل|واتساب|تفاصيل|الشروط|للتقديم)\b.*$/i, "")
     .replace(/[|:\-–—].*$/i, "")
     .replace(/\s{2,}/g, " ")
@@ -415,7 +414,7 @@ function extractEmploymentType(text = "") {
   if (/(دوام كامل|full time)/i.test(x)) return "دوام كامل";
   if (/(شفت مسائي|مسائي)/i.test(x)) return "شفت مسائي";
   if (/(شفت صباحي|صباحي)/i.test(x)) return "شفت صباحي";
-  if (/(فريلانس|عن بعد|remote)/i.test(x)) return "عن بعد / مرن";
+  if (/(فريلانس|عن بعد|remote|اونلاين|أونلاين|من البيت)/i.test(x)) return "عن بعد / مرن";
 
   return "غير مذكور";
 }
@@ -453,10 +452,10 @@ function fallbackCategory(text = "", title = "") {
   const s = normalizeInline(`${title} ${text}`).toLowerCase();
 
   if (/(hr|human resources|موارد بشرية|توظيف|recruit)/i.test(s)) return "HR";
-  if (/(admin|إداري|اداري|استقبال|سكرتير|سكرتارية|office)/i.test(s)) return "Admin";
-  if (/(sales|مبيعات|مندوب|مندوبة|كاشير|cashier)/i.test(s)) return "Sales";
+  if (/(admin|إداري|اداري|استقبال|رسبشن|سكرتير|سكرتارية|office)/i.test(s)) return "Admin";
+  if (/(sales|مبيعات|مندوب|مندوبة|كاشير|cashier|مستشارة مبيعات|موظفه مبيعات|موظفة مبيعات)/i.test(s)) return "Sales";
   if (/(customer service|خدمة عملاء|call center)/i.test(s)) return "Customer Service";
-  if (/(account|محاسب|محاسبة|حسابات|finance|مالي)/i.test(s)) return "Accounting";
+  if (/(account|محاسب|محاسبة|حسابات|finance|مالي|محاسبه)/i.test(s)) return "Accounting";
   if (/(engineer|مهندس|فني صيانة|maintenance)/i.test(s)) return "Engineering";
   if (/(developer|programmer|it support|it|شبكات|تقنية|برمجة|technical support)/i.test(s)) return "IT";
   if (/(designer|تصميم|مصمم|جرافيك|مونتاج|سوشيال ميديا)/i.test(s)) return "Design";
@@ -464,11 +463,11 @@ function fallbackCategory(text = "", title = "") {
   if (/(driver|سائق|توصيل|لوجست|مخزن|warehouse|storekeeper)/i.test(s)) return "Logistics";
   if (/(مشتريات|procurement|buyer)/i.test(s)) return "Procurement";
   if (/(قانوني|محامي|legal)/i.test(s)) return "Legal";
-  if (/(طبي|صيدل|تمريض|مختبر|عيادة|مركز طبي|مستشفى)/i.test(s)) return "Medical";
+  if (/(طبي|صيدل|تمريض|مختبر|عيادة|مركز طبي|مستشفى|تنظيف البشرة|كوافيرة|صالون)/i.test(s)) return "Medical";
   if (/(مدرس|تدريس|معهد|teacher|education)/i.test(s)) return "Education";
   if (/(operations|تشغيل|مشرف عمليات)/i.test(s)) return "Operations";
   if (/(manager|مدير|management|supervisor|مشرف)/i.test(s)) return "Management";
-  if (/(hotel|مطعم|مقهى|barista|chef|hospitality|ضيافة)/i.test(s)) return "Hospitality";
+  if (/(hotel|مطعم|مقهى|barista|chef|hospitality|ضيافة|طباخ)/i.test(s)) return "Hospitality";
   if (/(security|حارس|أمن)/i.test(s)) return "Security";
 
   return "Other";
@@ -599,11 +598,6 @@ async function extractWithAI(rawText, cleanText) {
 12) summary مختصر جداً، سطر واحد فقط، دون اختراع أي معلومة.
 13) إذا كانت التلميحات الأولية صحيحة فاستخدمها، وإذا كانت خاطئة تجاهلها. التلميحات ليست حقائق ملزمة.
 14) أعد JSON فقط.
-
-مهم جداً:
-- لا تكتب "شركة" داخل title إلا إذا كانت فعلاً جزءاً من المسمى الوظيفي.
-- لا تكتب رقم الهاتف كراتب.
-- لا تكتب اسم الشركة كمسمى وظيفي.
                 `.trim()
               }
             ]
@@ -634,7 +628,7 @@ ${JSON.stringify(hints, null, 2)}
         text: {
           format: {
             type: "json_schema",
-            name: "job_ad_extraction_v3",
+            name: "job_ad_extraction_v4",
             strict: true,
             schema
           }
@@ -642,23 +636,23 @@ ${JSON.stringify(hints, null, 2)}
       })
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
-if (!response.ok) {
-  console.log("OpenAI API error:", {
-    status: response.status,
-    model: MODEL_NAME,
-    data
-  });
-  return {
-    __ai_failed__: true,
-    __error__: JSON.stringify({
-      status: response.status,
-      model: MODEL_NAME,
-      data
-    }).slice(0, 1500)
-  };
-}
+    if (!response.ok) {
+      console.log("OpenAI API error:", {
+        status: response.status,
+        model: MODEL_NAME,
+        data
+      });
+      return {
+        __ai_failed__: true,
+        __error__: JSON.stringify({
+          status: response.status,
+          model: MODEL_NAME,
+          data
+        }).slice(0, 1500)
+      };
+    }
 
     let content = data.output_text || "";
 
@@ -678,13 +672,19 @@ if (!response.ok) {
 
     if (!content) {
       console.log("OpenAI empty output:", data);
-      return null;
+      return {
+        __ai_failed__: true,
+        __error__: "empty_output"
+      };
     }
 
     return JSON.parse(content);
   } catch (err) {
     console.log("AI extract error:", err);
-    return null;
+    return {
+      __ai_failed__: true,
+      __error__: String(err)
+    };
   }
 }
 
@@ -693,8 +693,8 @@ if (!response.ok) {
 // =========================
 function cleanAIResult(aiData, rawText = "", cleanText = "") {
   if (!aiData || typeof aiData !== "object") return null;
+  if (aiData.__ai_failed__) return null;
 
-  const baseText = cleanText || rawText;
   const hints = buildHeuristicHints(rawText, cleanText);
 
   let title = cleanJobTitle(aiData.title || "");
@@ -717,9 +717,7 @@ function cleanAIResult(aiData, rawText = "", cleanText = "") {
   if (company === "غير مذكور") {
     company = hints.company_hint;
   }
-if (!aiData || typeof aiData !== "object") return null;
-if (aiData.__ai_failed__) return null;
-  
+
   if (location === "غير مذكور") {
     location = hints.location_hint;
   }
@@ -909,14 +907,22 @@ function translateReviewReason(reason = "") {
     title_equals_company: "المسمى الوظيفي يبدو مطابقًا لاسم الشركة بشكل غير صحيح",
     contact_extraction_missed: "يوجد تواصل في النص لكن لم يتم استخراجه بشكل صحيح",
     bad_salary: "حقل الراتب غير واضح أو غير صحيح",
-    salary_looks_like_phone: "قيمة الراتب تبدو كأنها رقم هاتف"
+    salary_looks_like_phone: "قيمة الراتب تبدو كأنها رقم هاتف",
+    ai_failed: "فشل التحليل الآلي",
+    publish_send_failed: "فشل إرسال الإعلان إلى كروب النشر",
+    review_send_failed: "فشل إرسال الإعلان إلى كروب المراجعة"
   };
 
   return reason
     .split(",")
     .map(x => x.trim())
     .filter(Boolean)
-    .map(x => `- ${map[x] || x}`)
+    .map(x => {
+      const key = x.startsWith("publish_send_failed") ? "publish_send_failed"
+        : x.startsWith("review_send_failed") ? "review_send_failed"
+        : x;
+      return `- ${map[key] || x}`;
+    })
     .join("\n");
 }
 
@@ -949,8 +955,8 @@ function buildReviewText(reason, rawText, cleanText, aiResult, validation) {
 ${translateReviewReason(reason)}
 
 ──────────────
-📊 Score: ${validation.score}/100
-⚠️ Issues: ${validation.issues.join(" | ") || "لا يوجد"}
+📊 Score: ${validation?.score ?? 0}/100
+⚠️ Issues: ${validation?.issues?.join(" | ") || "لا يوجد"}
 
 ──────────────
 🤖 نتيجة التحليل:
@@ -963,6 +969,54 @@ ${cleanText}
 ──────────────
 📄 النص الأصلي:
 ${rawText}`;
+}
+
+// =========================
+// Routing helpers
+// =========================
+function insertReviewRow(rawAdId, hash, rawText, cleanText, aiData, finalResult, reviewReason) {
+  db.prepare(`
+    INSERT INTO ads_review (
+      raw_ad_id, hash, raw_text, clean_text, ai_output_json, final_output_json, review_reason
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    rawAdId,
+    hash,
+    rawText,
+    cleanText,
+    JSON.stringify(aiData || null),
+    JSON.stringify(finalResult || null),
+    reviewReason
+  );
+}
+
+async function sendToReview({
+  rawAdId,
+  hash,
+  rawText,
+  cleanText,
+  aiData,
+  finalResult,
+  reviewReason,
+  validation
+}) {
+  const finalText = buildReviewText(reviewReason, rawText, cleanText, finalResult || aiData || null, validation || { score: 0, issues: [] });
+
+  const tgRes = await tg("sendMessage", {
+    chat_id: REVIEW_CHAT_ID,
+    text: finalText
+  });
+
+  console.log("REVIEW TG RESPONSE:", JSON.stringify(tgRes, null, 2));
+
+  insertReviewRow(rawAdId, hash, rawText, cleanText, aiData, finalResult, reviewReason);
+
+  if (!tgRes?.ok) {
+    console.log("Review send failed:", tgRes);
+  }
+
+  return tgRes;
 }
 
 // =========================
@@ -1009,13 +1063,13 @@ app.post("/webhook", async (req, res) => {
 
     console.log("CONFIG:", { INBOX_CHAT_ID, REVIEW_CHAT_ID, QUDRAT_CHAT_ID, MODEL_NAME });
     console.log("/webhook HIT", new Date().toISOString());
-    console.log("msg preview:", normalizeInline(cleanText).slice(0, 160));
+    console.log("STEP 1 RAW SAVED:", { rawAdId, preview: normalizeInline(cleanText).slice(0, 160) });
 
     const aiData = await extractWithAI(rawText, cleanText);
-    const finalResult = cleanAIResult(aiData, rawText, cleanText);
+    console.log("STEP 2 AI DATA:", aiData);
 
-    console.log("AI DATA:", aiData);
-    console.log("FINAL RESULT:", finalResult);
+    const finalResult = cleanAIResult(aiData, rawText, cleanText);
+    console.log("STEP 3 FINAL RESULT:", finalResult);
 
     db.prepare(`
       UPDATE ads_raw
@@ -1029,53 +1083,26 @@ app.post("/webhook", async (req, res) => {
     );
 
     if (!finalResult) {
-      const tgRes = await tg("sendMessage", {
-  chat_id: targetChatId,
-  text: finalText
-});
-
-if (!tgRes?.ok) {
-  const failReason = `publish_send_failed:${tgRes?.description || "unknown_telegram_error"}`;
-
-  await tg("sendMessage", {
-    chat_id: REVIEW_CHAT_ID,
-    text: buildReviewText(
-      failReason,
-      rawText,
-      cleanText,
-      finalResult,
-      validation
-    )
-  });
-
-  db.prepare(`
-    INSERT INTO ads_review (
-      raw_ad_id, hash, raw_text, clean_text, ai_output_json, final_output_json, review_reason
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    rawAdId,
-    hash,
-    rawText,
-    cleanText,
-    JSON.stringify(aiData || null),
-    JSON.stringify(finalResult || null),
-    failReason
-  );
-
-  return;
-}
-
-      console.log("SEND RESULT:", JSON.stringify(tgRes, null, 2));
+      await sendToReview({
+        rawAdId,
+        hash,
+        rawText,
+        cleanText,
+        aiData,
+        finalResult: null,
+        reviewReason: "ai_failed",
+        validation: { score: 0, issues: ["ai_failed"] }
+      });
       return;
     }
 
     const validation = validateResult(finalResult, rawText, cleanText);
-    const decision = decideStrict(validation);
-    const targetChatId = decision.bucket === "QUDRAT" ? QUDRAT_CHAT_ID : REVIEW_CHAT_ID;
+    console.log("STEP 4 VALIDATION:", validation);
 
-    console.log("VALIDATION:", validation);
-    console.log("DECISION:", decision);
+    const decision = decideStrict(validation);
+    console.log("STEP 5 DECISION:", decision);
+
+    const targetChatId = decision.bucket === "QUDRAT" ? QUDRAT_CHAT_ID : REVIEW_CHAT_ID;
 
     if (decision.bucket === "QUDRAT") {
       const finalText = buildPublishedText(finalResult, rawText);
@@ -1084,6 +1111,24 @@ if (!tgRes?.ok) {
         chat_id: targetChatId,
         text: finalText
       });
+
+      console.log("PUBLISH TG RESPONSE:", JSON.stringify(tgRes, null, 2));
+
+      if (!tgRes?.ok) {
+        const failReason = `publish_send_failed:${tgRes?.description || "unknown_telegram_error"}`;
+
+        await sendToReview({
+          rawAdId,
+          hash,
+          rawText,
+          cleanText,
+          aiData,
+          finalResult,
+          reviewReason: failReason,
+          validation
+        });
+        return;
+      }
 
       db.prepare(`
         INSERT INTO ads_published (
@@ -1109,32 +1154,18 @@ if (!tgRes?.ok) {
         String(tgRes?.result?.message_id || "")
       );
 
-      console.log("PUBLISHED SEND RESULT:", JSON.stringify(tgRes, null, 2));
+      console.log("PUBLISHED OK:", { rawAdId, messageId: tgRes?.result?.message_id || null });
     } else {
-      const reviewReason = decision.reason || "needs_review";
-      const finalText = buildReviewText(reviewReason, rawText, cleanText, finalResult, validation);
-
-      const tgRes = await tg("sendMessage", {
-        chat_id: targetChatId,
-        text: finalText
-      });
-
-      db.prepare(`
-        INSERT INTO ads_review (
-          raw_ad_id, hash, raw_text, clean_text, ai_output_json, final_output_json, review_reason
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      await sendToReview({
         rawAdId,
         hash,
         rawText,
         cleanText,
-        JSON.stringify(aiData || null),
-        JSON.stringify(finalResult || null),
-        reviewReason
-      );
-
-      console.log("REVIEW SEND RESULT:", JSON.stringify(tgRes, null, 2));
+        aiData,
+        finalResult,
+        reviewReason: decision.reason || "needs_review",
+        validation
+      });
     }
   } catch (e) {
     console.log("Webhook handler error:", e?.stack || String(e));
