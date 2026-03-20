@@ -10,12 +10,10 @@ export function buildPublishedText(result, rawText) {
 
 🔹 المسمى الوظيفي: ${result.title}
 🔹 المجال: ${result.category}
-🔹 اسم الشركة: ${result.company}
-🔹 الموقع: ${result.location}
-🔹 نوع العمل: ${result.employment_type}
+🔹 اسم الشركة/المؤسسة: ${result.company}
+🔹 موقع العمل: ${result.location}
 🔹 الخبرة المطلوبة: ${result.experience}
 🔹 الراتب: ${result.salary}
-🔹 طريقة التقديم: ${result.application_method}
 🔹 التواصل: ${result.contact}
 
 ──────────────
