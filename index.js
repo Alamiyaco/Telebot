@@ -993,9 +993,9 @@ app.post("/webhook", async (req, res) => {
       LIMIT 1
     `).get(hash);
 
-    if (exists) {
-      console.log("Duplicate ad skipped");
-      return;
+  //  if (exists) {
+  //    console.log("Duplicate ad skipped");
+   //   return;
     }
 
     const insertRawResult = db.prepare(`
