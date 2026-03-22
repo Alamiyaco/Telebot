@@ -986,16 +986,16 @@ app.post("/webhook", async (req, res) => {
     const cleanText = cleanTelegramAd(rawText);
     const hash = sha256(cleanText);
 
- //   const exists = db.prepare(`
-   //   SELECT id FROM ads_raw
-      //WHERE hash = ?
-    //    AND created_at >= datetime('now', '-7 days')
-   //   LIMIT 1
-  //  `).get(hash);
+    const exists = db.prepare(`
+      SELECT id FROM ads_raw
+      WHERE hash = ?
+        AND created_at >= datetime('now', '-7 second')
+      LIMIT 1
+    `).get(hash);
 
-  //  if (exists) {
-  //    console.log("Duplicate ad skipped");
-   //   return;
+    if (exists) {
+      console.log("Duplicate ad skipped");
+      return;
     }
 
     const insertRawResult = db.prepare(`
