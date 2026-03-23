@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>قُدرات — لوحة التحكم</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#0c1222;--navy-l:#162035;--navy-ll:#1e2d4a;
+  --gold:#d4a54a;--gold-l:#e8c170;--gold-d:#b8862e;
+  --bg:#f3f4f8;--card:#fff;--border:#e2e5eb;
+  --txt:#1a2036;--txt-s:#5a6178;--txt-xs:#8891a5;
+  --green:#22c55e;--red:#ef4444;--blue:#3b82f6;
+  --r:14px;--shadow:0 2px 16px rgba(12,18,34,.07);
+}
+body{font-family:'Tajawal',sans-serif;background:var(--bg);color:var(--txt);line-height:1.6;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select,textarea{font-family:inherit;outline:none}
+
+/* ===== LOGIN ===== */
+.login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--navy),var(--navy-ll));padding:24px}
+.login-card{background:var(--card);border-radius:20px;padding:48px 40px;max-width:400px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-card h1{font-size:32px;font-weight:900;margin-bottom:4px}
+.login-card h1 span{color:var(--gold)}
+.login-card p{color:var(--txt-xs);font-size:14px;margin-bottom:32px}
+.login-input{width:100%;background:var(--bg);border:2px solid var(--border);border-radius:12px;padding:14px 18px;font-size:15px;text-align:center;margin-bottom:16px;transition:.2s}
+.login-input:focus{border-color:var(--gold)}
+.login-btn{width:100%;background:var(--gold);color:var(--navy);border-radius:12px;padding:14px;font-size:16px;font-weight:800;transition:.2s}
+.login-btn:hover{background:var(--gold-l)}
+.login-err{color:var(--red);font-size:13px;margin-top:12px;display:none}
+
+/* ===== DASHBOARD ===== */
+.dashboard{display:none}
+.top-bar{background:var(--navy);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100}
+.top-bar h2{color:#fff;font-size:18px;font-weight:800}
+.top-bar h2 span{color:var(--gold)}
+.top-bar-actions{display:flex;gap:10px;align-items:center}
+.top-bar a{color:rgba(255,255,255,.6);font-size:13px;padding:6px 14px;border:1px solid rgba(255,255,255,.15);border-radius:8px;text-decoration:none;transition:.2s}
+.top-bar a:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+.logout-btn{color:rgba(255,255,255,.6);background:none;font-size:13px;padding:6px 14px;border:1px solid rgba(255,255,255,.15);border-radius:8px;transition:.2s}
+.logout-btn:hover{color:var(--red);border-color:var(--red)}
+
+.dash-container{max-width:1100px;margin:0 auto;padding:24px}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);text-align:center}
+.stat-card .num{font-size:28px;font-weight:900}
+.stat-card .lbl{font-size:12px;color:var(--txt-xs);margin-top:2px}
+.stat-card.pending .num{color:var(--gold)}
+.stat-card.published .num{color:var(--green)}
+.stat-card.rejected .num{color:var(--red)}
+.stat-card.review .num{color:var(--blue)}
+
+/* Settings */
+.settings-bar{background:var(--card);border-radius:var(--r);padding:16px 20px;box-shadow:var(--shadow);margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.settings-bar label{font-size:14px;font-weight:600;color:var(--txt-s)}
+.toggle{position:relative;width:48px;height:26px;display:inline-block}
+.toggle input{opacity:0;width:0;height:0}
+.toggle .slider{position:absolute;inset:0;background:var(--border);border-radius:26px;cursor:pointer;transition:.3s}
+.toggle .slider::before{content:'';position:absolute;height:20px;width:20px;right:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.toggle input:checked+.slider{background:var(--green)}
+.toggle input:checked+.slider::before{transform:translateX(-22px)}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--card);border-radius:12px;padding:4px;box-shadow:var(--shadow)}
+.tab{flex:1;text-align:center;padding:10px;border-radius:10px;font-size:14px;font-weight:600;color:var(--txt-s);cursor:pointer;transition:.2s;position:relative}
+.tab:hover{background:var(--bg)}
+.tab.active{background:var(--navy);color:#fff}
+.tab .badge{display:inline-block;font-size:11px;font-weight:700;background:var(--gold);color:var(--navy);padding:1px 8px;border-radius:10px;margin-right:6px}
+
+/* Job cards */
+.admin-jobs{display:grid;gap:14px}
+.admin-card{background:var(--card);border-radius:var(--r);padding:20px 24px;box-shadow:var(--shadow);border-right:4px solid var(--border);transition:.2s}
+.admin-card.pending{border-right-color:var(--gold)}
+.admin-card.published{border-right-color:var(--green)}
+.admin-card.rejected{border-right-color:var(--red)}
+.admin-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:12px}
+.admin-card-info{flex:1}
+.admin-card-title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:4px}
+.admin-card-company{font-size:13px;color:var(--txt-s)}
+.admin-card-meta{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;font-size:12px;color:var(--txt-xs)}
+.admin-card-meta span{display:flex;align-items:center;gap:4px}
+.admin-card-cat{font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;background:rgba(212,165,74,.1);color:var(--gold-d)}
+.admin-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:700;transition:.2s;display:inline-flex;align-items:center;gap:6px}
+.btn-approve{background:var(--green);color:#fff}.btn-approve:hover{filter:brightness(1.1)}
+.btn-edit{background:var(--bg);color:var(--txt-s);border:1px solid var(--border)}.btn-edit:hover{border-color:var(--gold);color:var(--gold-d)}
+.btn-reject{background:rgba(239,68,68,.08);color:var(--red)}.btn-reject:hover{background:rgba(239,68,68,.15)}
+.btn-delete{background:var(--red);color:#fff}.btn-delete:hover{filter:brightness(1.1)}
+.btn-restore{background:var(--blue);color:#fff}.btn-restore:hover{filter:brightness(1.1)}
+.btn-gold{background:var(--gold);color:var(--navy)}.btn-gold:hover{background:var(--gold-l)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(12,18,34,.6);z-index:200;display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px)}
+.modal-bg.show{display:flex}
+.modal-box{background:var(--card);border-radius:20px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;padding:32px}
+.modal-box h3{font-size:20px;font-weight:800;margin-bottom:20px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--txt-s);margin-bottom:6px}
+.form-group input,.form-group select,.form-group textarea{width:100%;background:var(--bg);border:2px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;transition:.2s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--gold)}
+.form-group textarea{min-height:80px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+.btn-cancel{background:var(--bg);color:var(--txt-s);border:1px solid var(--border);padding:10px 24px;border-radius:10px;font-size:14px;font-weight:600}
+.btn-save{background:var(--gold);color:var(--navy);padding:10px 24px;border-radius:10px;font-size:14px;font-weight:800}
+
+/* Raw text preview */
+.raw-preview{background:var(--bg);border-radius:10px;padding:14px;margin-top:10px;max-height:200px;overflow-y:auto}
+.raw-preview pre{font-family:'Tajawal',sans-serif;font-size:12px;color:var(--txt-s);white-space:pre-wrap;line-height:1.7}
+
+/* Empty */
+.empty{text-align:center;padding:60px 24px;color:var(--txt-xs)}
+.empty .icon{font-size:48px;margin-bottom:12px;opacity:.3}
+
+/* Toast */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;z-index:300;opacity:0;transition:.3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.success{background:var(--green)}
+.toast.error{background:var(--red)}
+
+.loading{text-align:center;padding:40px}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:768px){
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .admin-card-top{flex-direction:column}
+  .tabs{overflow-x:auto}
+  .form-row{grid-template-columns:1fr}
+  .modal-box{margin:0 12px;padding:24px 20px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-page" id="loginPage">
+<div class="login-card">
+  <h1>قُدرات <span>.</span></h1>
+  <p>لوحة التحكم — سجّل الدخول للمتابعة</p>
+  <input type="password" class="login-input" id="loginPass" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()">
+  <button class="login-btn" onclick="doLogin()">دخول</button>
+  <div class="login-err" id="loginErr">كلمة المرور غير صحيحة</div>
+</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard" id="dashboard">
+
+<div class="top-bar">
+  <h2>قُدرات <span>|</span> لوحة التحكم</h2>
+  <div class="top-bar-actions">
+    <a href="/">الموقع العام</a>
+    <button class="logout-btn" onclick="doLogout()">خروج</button>
+  </div>
+</div>
+
+<div class="dash-container">
+  <!-- Stats -->
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card pending"><div class="num" id="sPending">0</div><div class="lbl">بانتظار الموافقة</div></div>
+    <div class="stat-card published"><div class="num" id="sPublished">0</div><div class="lbl">منشورة</div></div>
+    <div class="stat-card rejected"><div class="num" id="sRejected">0</div><div class="lbl">مرفوضة</div></div>
+    <div class="stat-card review"><div class="num" id="sReview">0</div><div class="lbl">بحاجة مراجعة</div></div>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings-bar">
+    <div>
+      <label>نظام الموافقة المسبقة</label>
+      <p style="font-size:12px;color:var(--txt-xs);margin-top:2px">عند التفعيل: الوظائف لا تُنشر إلا بعد موافقتك</p>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" id="approvalToggle" onchange="toggleApproval()">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="pending_approval" onclick="switchTab('pending_approval')">بانتظار الموافقة <span class="badge" id="tabPendingBadge">0</span></div>
+    <div class="tab" data-tab="published" onclick="switchTab('published')">المنشورة</div>
+    <div class="tab" data-tab="rejected" onclick="switchTab('rejected')">المرفوضة</div>
+  </div>
+
+  <!-- Bulk actions -->
+  <div id="bulkActions" style="display:none;margin-bottom:16px">
+    <button class="btn btn-gold" onclick="approveAll()">✅ نشر الكل</button>
+  </div>
+
+  <!-- Jobs list -->
+  <div id="adminJobs">
+    <div class="loading"><div class="spinner"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-bg" id="editModal" onclick="if(event.target===this)closeEdit()">
+<div class="modal-box">
+  <h3 id="editTitle">تعديل الوظيفة</h3>
+  <input type="hidden" id="editId">
+  <div class="form-row">
+    <div class="form-group"><label>المسمى الوظيفي</label><input id="editJobTitle"></div>
+    <div class="form-group"><label>التصنيف</label><select id="editCategory"></select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>الشركة</label><input id="editCompany"></div>
+    <div class="form-group"><label>الموقع</label><input id="editLocation"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>الراتب</label><input id="editSalary"></div>
+    <div class="form-group"><label>الخبرة</label><input id="editExperience"></div>
+  </div>
+  <div class="form-group"><label>التواصل</label><input id="editContact"></div>
+  <div class="form-group"><label>الملخص</label><textarea id="editSummary"></textarea></div>
+  <div class="raw-preview" id="editRawPreview" style="display:none"><h4 style="font-size:12px;color:var(--txt-xs);margin-bottom:6px">النص الأصلي:</h4><pre id="editRawText"></pre></div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeEdit()">إلغاء</button>
+    <button class="btn-save" onclick="saveEdit()">حفظ التعديلات</button>
+  </div>
+</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const CATS = [
+  {key:"HR",ar:"موارد بشرية"},{key:"Admin",ar:"إدارية"},{key:"Sales",ar:"مبيعات"},
+  {key:"Customer Service",ar:"خدمة عملاء"},{key:"Accounting",ar:"محاسبة"},{key:"Finance",ar:"مالية"},
+  {key:"Engineering",ar:"هندسة"},{key:"IT",ar:"تكنولوجيا معلومات"},{key:"Marketing",ar:"تسويق وميديا"},
+  {key:"Logistics",ar:"لوجستيات ونقل"},{key:"Procurement",ar:"مشتريات"},{key:"Legal",ar:"قانونية"},
+  {key:"Medical",ar:"طبية وصحية"},{key:"Education",ar:"تعليم وتدريب"},{key:"Operations",ar:"عمليات"},
+  {key:"Management",ar:"إدارة عليا"},{key:"Hospitality",ar:"ضيافة وسياحة"},{key:"Other",ar:"أخرى"}
+];
+
+let token = sessionStorage.getItem("admin_token") || "";
+let currentTab = "pending_approval";
+
+// ===== AUTH =====
+async function doLogin() {
+  const pass = document.getElementById("loginPass").value;
+  const errEl = document.getElementById("loginErr");
+  errEl.style.display = "none";
+
+  try {
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ password: pass })
+    });
+    const data = await res.json();
+    if (data.token) {
+      token = data.token;
+      sessionStorage.setItem("admin_token", token);
+      showDashboard();
+    } else {
+      errEl.style.display = "block";
+    }
+  } catch(e) {
+    errEl.textContent = "خطأ في الاتصال";
+    errEl.style.display = "block";
+  }
+}
+
+function doLogout() {
+  token = "";
+  sessionStorage.removeItem("admin_token");
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("loginPage").style.display = "flex";
+}
+
+function authHeaders() {
+  return { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
+}
+
+async function checkAuth() {
+  if (!token) return false;
+  try {
+    const res = await fetch("/api/admin/stats", { headers: authHeaders() });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+// ===== INIT =====
+async function init() {
+  if (await checkAuth()) {
+    showDashboard();
+  } else {
+    document.getElementById("loginPage").style.display = "flex";
+  }
+}
+
+async function showDashboard() {
+  document.getElementById("loginPage").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  populateCategorySelect();
+  await loadAdminStats();
+  await loadAdminSettings();
+  await loadAdminJobs();
+}
+
+// ===== STATS =====
+async function loadAdminStats() {
+  try {
+    const res = await fetch("/api/admin/stats", { headers: authHeaders() });
+    if (!res.ok) { if (res.status === 401) doLogout(); return; }
+    const d = await res.json();
+    document.getElementById("sPending").textContent = d.pending;
+    document.getElementById("sPublished").textContent = d.published;
+    document.getElementById("sRejected").textContent = d.rejected;
+    document.getElementById("sReview").textContent = d.review;
+    document.getElementById("tabPendingBadge").textContent = d.pending;
+  } catch(e) { console.error(e); }
+}
+
+// ===== SETTINGS =====
+async function loadAdminSettings() {
+  try {
+    const res = await fetch("/api/admin/settings", { headers: authHeaders() });
+    const d = await res.json();
+    document.getElementById("approvalToggle").checked = d.require_approval;
+  } catch(e) {}
+}
+
+async function toggleApproval() {
+  const checked = document.getElementById("approvalToggle").checked;
+  try {
+    await fetch("/api/admin/settings", {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ require_approval: checked })
+    });
+    toast(checked ? "تم تفعيل نظام الموافقة المسبقة" : "تم تعطيل نظام الموافقة — النشر تلقائي الآن", "success");
+  } catch(e) { toast("خطأ", "error"); }
+}
+
+// ===== TABS =====
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tab));
+  document.getElementById("bulkActions").style.display = tab === "pending_approval" ? "block" : "none";
+  loadAdminJobs();
+}
+
+// ===== JOBS =====
+async function loadAdminJobs() {
+  const container = document.getElementById("adminJobs");
+  container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    const res = await fetch(`/api/admin/jobs?status=${currentTab}&limit=100`, { headers: authHeaders() });
+    if (!res.ok) { if (res.status === 401) doLogout(); return; }
+    const data = await res.json();
+
+    if (data.jobs.length === 0) {
+      container.innerHTML = `<div class="empty"><div class="icon">${currentTab === 'pending_approval' ? '✅' : '📭'}</div><p>${currentTab === 'pending_approval' ? 'لا توجد وظائف بانتظار الموافقة' : 'لا توجد بيانات'}</p></div>`;
+      return;
+    }
+
+    container.innerHTML = `<div class="admin-jobs">${data.jobs.map(j => renderAdminCard(j)).join("")}</div>`;
+  } catch(e) {
+    container.innerHTML = '<div class="empty"><div class="icon">⚠️</div><p>خطأ في التحميل</p></div>';
+  }
+}
+
+function renderAdminCard(job) {
+  const cat = CATS.find(c => c.key === job.category);
+  const catName = cat?.ar || job.category;
+  const status = job.website_status;
+
+  let actions = "";
+  if (status === "pending_approval") {
+    actions = `
+      <button class="btn btn-approve" onclick="approveJob(${job.id})">✅ نشر</button>
+      <button class="btn btn-edit" onclick="openEdit(${job.id})">✏️ تعديل</button>
+      <button class="btn btn-reject" onclick="rejectJob(${job.id})">❌ رفض</button>
+    `;
+  } else if (status === "published") {
+    actions = `
+      <button class="btn btn-edit" onclick="openEdit(${job.id})">✏️ تعديل</button>
+      <button class="btn btn-delete" onclick="deleteJob(${job.id})">🗑️ حذف</button>
+    `;
+  } else if (status === "rejected") {
+    actions = `
+      <button class="btn btn-restore" onclick="approveJob(${job.id})">♻️ نشر</button>
+      <button class="btn btn-delete" onclick="deleteJob(${job.id})">🗑️ حذف نهائي</button>
+    `;
+  }
+
+  return `
+    <div class="admin-card ${status}">
+      <div class="admin-card-top">
+        <div class="admin-card-info">
+          <div class="admin-card-title">${esc(job.title)}</div>
+          <div class="admin-card-company">${esc(job.company)}</div>
+          <div class="admin-card-meta">
+            <span>📍 ${esc(job.location)}</span>
+            ${job.salary && job.salary !== "غير مذكور" ? `<span>💰 ${esc(job.salary)}</span>` : ""}
+            ${job.experience && job.experience !== "غير مذكور" ? `<span>📋 ${esc(job.experience)}</span>` : ""}
+            <span>📞 ${esc(job.contact)}</span>
+          </div>
+        </div>
+        <span class="admin-card-cat">${catName}</span>
+      </div>
+      <div class="admin-card-actions">${actions}</div>
+    </div>
+  `;
+}
+
+// ===== ACTIONS =====
+async function approveJob(id) {
+  try {
+    const res = await fetch(`/api/admin/approve/${id}`, { method: "POST", headers: authHeaders() });
+    const d = await res.json();
+    if (d.ok || d.message === "already_published") {
+      toast("تم النشر بنجاح ✅", "success");
+      await loadAdminStats();
+      await loadAdminJobs();
+    } else {
+      toast(d.error || "خطأ في النشر", "error");
+    }
+  } catch(e) { toast("خطأ في الاتصال", "error"); }
+}
+
+async function rejectJob(id) {
+  if (!confirm("هل تريد رفض هذه الوظيفة؟")) return;
+  try {
+    const res = await fetch(`/api/admin/reject/${id}`, { method: "POST", headers: authHeaders() });
+    const d = await res.json();
+    if (d.ok) {
+      toast("تم الرفض", "success");
+      await loadAdminStats();
+      await loadAdminJobs();
+    }
+  } catch(e) { toast("خطأ", "error"); }
+}
+
+async function deleteJob(id) {
+  if (!confirm("هل تريد الحذف النهائي؟ سيتم حذفها من الكروب أيضاً.")) return;
+  try {
+    const res = await fetch(`/api/admin/jobs/${id}`, { method: "DELETE", headers: authHeaders() });
+    const d = await res.json();
+    if (d.ok) {
+      toast("تم الحذف ✅", "success");
+      await loadAdminStats();
+      await loadAdminJobs();
+    }
+  } catch(e) { toast("خطأ", "error"); }
+}
+
+async function approveAll() {
+  if (!confirm("هل تريد نشر جميع الوظائف المعلقة؟")) return;
+  toast("جاري النشر... يرجى الانتظار", "success");
+  try {
+    const res = await fetch("/api/admin/approve-all", { method: "POST", headers: authHeaders() });
+    const d = await res.json();
+    toast(`تم نشر ${d.approved} وظيفة ${d.failed > 0 ? `(فشل ${d.failed})` : ""}`, d.failed > 0 ? "error" : "success");
+    await loadAdminStats();
+    await loadAdminJobs();
+  } catch(e) { toast("خطأ", "error"); }
+}
+
+// ===== EDIT =====
+function populateCategorySelect() {
+  const sel = document.getElementById("editCategory");
+  sel.innerHTML = CATS.map(c => `<option value="${c.key}">${c.ar}</option>`).join("");
+}
+
+async function openEdit(id) {
+  try {
+    const res = await fetch(`/api/admin/jobs/${id}`, { headers: authHeaders() });
+    const job = await res.json();
+
+    document.getElementById("editId").value = job.id;
+    document.getElementById("editJobTitle").value = job.title || "";
+    document.getElementById("editCategory").value = job.category || "Other";
+    document.getElementById("editCompany").value = job.company || "";
+    document.getElementById("editLocation").value = job.location || "";
+    document.getElementById("editSalary").value = job.salary || "";
+    document.getElementById("editExperience").value = job.experience || "";
+    document.getElementById("editContact").value = job.contact || "";
+    document.getElementById("editSummary").value = job.summary || "";
+
+    if (job.raw_text) {
+      document.getElementById("editRawPreview").style.display = "block";
+      document.getElementById("editRawText").textContent = job.raw_text;
+    } else {
+      document.getElementById("editRawPreview").style.display = "none";
+    }
+
+    document.getElementById("editModal").classList.add("show");
+  } catch(e) { toast("خطأ في تحميل البيانات", "error"); }
+}
+
+function closeEdit() {
+  document.getElementById("editModal").classList.remove("show");
+}
+
+async function saveEdit() {
+  const id = document.getElementById("editId").value;
+  const body = {
+    title: document.getElementById("editJobTitle").value,
+    category: document.getElementById("editCategory").value,
+    company: document.getElementById("editCompany").value,
+    location: document.getElementById("editLocation").value,
+    salary: document.getElementById("editSalary").value,
+    experience: document.getElementById("editExperience").value,
+    contact: document.getElementById("editContact").value,
+    summary: document.getElementById("editSummary").value
+  };
+
+  try {
+    const res = await fetch(`/api/admin/jobs/${id}`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify(body)
+    });
+    const d = await res.json();
+    if (d.ok) {
+      toast("تم الحفظ ✅ (التعديل ينعكس على الكروب أيضاً)", "success");
+      closeEdit();
+      await loadAdminJobs();
+    } else {
+      toast("خطأ في الحفظ", "error");
+    }
+  } catch(e) { toast("خطأ في الاتصال", "error"); }
+}
+
+// ===== HELPERS =====
+function esc(s) { if (!s) return "غير مذكور"; const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+function toast(msg, type = "") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  setTimeout(() => el.className = "toast", 3000);
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeEdit(); });
+
+// ===== START =====
+init();
+</script>
+</body>
+</html>
