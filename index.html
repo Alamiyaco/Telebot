@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>قُدرات - منصة الوظائف العراقية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#0c1222;--navy-l:#162035;--navy-ll:#1e2d4a;
+  --gold:#d4a54a;--gold-l:#e8c170;--gold-d:#b8862e;
+  --bg:#f3f4f8;--card:#fff;--border:#e2e5eb;
+  --txt:#1a2036;--txt-s:#5a6178;--txt-xs:#8891a5;
+  --r:14px;--shadow:0 2px 16px rgba(12,18,34,.07);
+}
+body{font-family:'Tajawal',sans-serif;background:var(--bg);color:var(--txt);line-height:1.7;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select{font-family:inherit}
+.container{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* ===== NAV ===== */
+nav{background:var(--navy);padding:0 24px;position:sticky;top:0;z-index:100;box-shadow:0 4px 24px rgba(0,0,0,.3)}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:64px}
+.nav-brand{display:flex;align-items:center;gap:10px}
+.nav-brand h1{font-size:24px;font-weight:900;color:#fff;letter-spacing:-.5px}
+.nav-brand span{color:var(--gold);font-size:13px;font-weight:500;opacity:.8}
+.nav-links{display:flex;gap:4px}
+.nav-links a{color:rgba(255,255,255,.7);padding:8px 18px;border-radius:8px;font-size:14px;font-weight:500;transition:.2s}
+.nav-links a:hover,.nav-links a.active{color:#fff;background:rgba(255,255,255,.1)}
+.nav-links a.active{color:var(--gold)}
+.nav-links a.disabled{opacity:.4;pointer-events:none;position:relative}
+.nav-links a.disabled::after{content:"قريباً";position:absolute;top:-8px;left:-8px;font-size:9px;background:var(--gold);color:var(--navy);padding:1px 6px;border-radius:6px;font-weight:700}
+.nav-admin{color:rgba(255,255,255,.5);font-size:13px;padding:6px 14px;border:1px solid rgba(255,255,255,.15);border-radius:8px;transition:.2s}
+.nav-admin:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+
+/* ===== HERO ===== */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-l) 50%,var(--navy-ll) 100%);padding:60px 24px 80px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-50%;right:-20%;width:600px;height:600px;background:radial-gradient(circle,rgba(212,165,74,.08) 0%,transparent 70%);pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:-30%;left:-10%;width:400px;height:400px;background:radial-gradient(circle,rgba(212,165,74,.05) 0%,transparent 70%);pointer-events:none}
+.hero-inner{max-width:1200px;margin:0 auto;text-align:center;position:relative;z-index:1}
+.hero h2{font-size:42px;font-weight:900;color:#fff;margin-bottom:12px;letter-spacing:-.5px}
+.hero h2 span{color:var(--gold)}
+.hero p{color:rgba(255,255,255,.6);font-size:17px;margin-bottom:36px;font-weight:300}
+.hero-stats{display:flex;justify-content:center;gap:40px;margin-bottom:40px}
+.hero-stat{text-align:center}
+.hero-stat .num{font-size:32px;font-weight:900;color:var(--gold)}
+.hero-stat .lbl{font-size:13px;color:rgba(255,255,255,.5);font-weight:400}
+
+/* ===== SEARCH ===== */
+.search-box{max-width:800px;margin:0 auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:6px;display:flex;gap:6px;backdrop-filter:blur(8px)}
+.search-input{flex:1;background:rgba(255,255,255,.95);border:none;border-radius:12px;padding:14px 20px;font-size:15px;color:var(--txt);direction:rtl}
+.search-input::placeholder{color:var(--txt-xs)}
+.search-btn{background:var(--gold);color:var(--navy);border:none;border-radius:12px;padding:14px 28px;font-size:15px;font-weight:700;transition:.2s;white-space:nowrap}
+.search-btn:hover{background:var(--gold-l);transform:translateY(-1px)}
+
+/* ===== FILTERS ===== */
+.filters-bar{max-width:1200px;margin:-30px auto 0;padding:0 24px;position:relative;z-index:10}
+.filters-inner{background:var(--card);border-radius:16px;padding:16px 20px;box-shadow:var(--shadow);display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.filter-select{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--txt);min-width:160px;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235a6178' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:12px center}
+.filter-select:focus{border-color:var(--gold);outline:none}
+.filter-tag{background:var(--gold);color:var(--navy);font-size:12px;font-weight:700;padding:6px 14px;border-radius:8px;display:flex;align-items:center;gap:6px}
+.filter-tag button{background:none;color:var(--navy);font-size:16px;line-height:1;opacity:.7}
+.filter-tag button:hover{opacity:1}
+.filters-clear{color:var(--txt-xs);font-size:12px;cursor:pointer;margin-right:auto}
+.filters-clear:hover{color:var(--gold-d)}
+
+/* ===== CATEGORIES ===== */
+.section{padding:48px 24px}
+.section-head{max-width:1200px;margin:0 auto 28px;display:flex;align-items:center;justify-content:space-between}
+.section-head h3{font-size:22px;font-weight:800;color:var(--txt)}
+.section-head a{color:var(--gold-d);font-size:14px;font-weight:600}
+.cat-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.cat-card{background:var(--card);border-radius:var(--r);padding:24px 20px;text-align:center;cursor:pointer;transition:.25s;border:2px solid transparent;box-shadow:var(--shadow)}
+.cat-card:hover{border-color:var(--gold);transform:translateY(-4px);box-shadow:0 8px 32px rgba(212,165,74,.15)}
+.cat-card.active{border-color:var(--gold);background:linear-gradient(135deg,rgba(212,165,74,.06),rgba(212,165,74,.02))}
+.cat-icon{font-size:32px;margin-bottom:10px;display:block}
+.cat-name{font-size:14px;font-weight:700;color:var(--txt);margin-bottom:4px}
+.cat-count{font-size:12px;color:var(--txt-xs);font-weight:400}
+
+/* ===== JOBS GRID ===== */
+.jobs-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.job-card{background:var(--card);border-radius:var(--r);padding:24px;cursor:pointer;transition:.25s;border:1px solid var(--border);position:relative;overflow:hidden}
+.job-card:hover{border-color:var(--gold);box-shadow:0 8px 32px rgba(212,165,74,.12);transform:translateY(-2px)}
+.job-card::before{content:'';position:absolute;top:0;right:0;width:4px;height:100%;background:var(--gold);opacity:0;transition:.2s}
+.job-card:hover::before{opacity:1}
+.job-cat-badge{display:inline-block;font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px;margin-bottom:12px;background:rgba(212,165,74,.1);color:var(--gold-d)}
+.job-title{font-size:17px;font-weight:800;color:var(--txt);margin-bottom:8px;line-height:1.4}
+.job-company{font-size:13px;color:var(--txt-s);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.job-company svg{width:14px;height:14px;opacity:.5}
+.job-meta{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+.job-meta-item{font-size:12px;color:var(--txt-xs);display:flex;align-items:center;gap:4px}
+.job-meta-item svg{width:13px;height:13px;opacity:.5}
+.job-salary{font-size:13px;font-weight:700;color:#2d8a56;background:rgba(45,138,86,.08);padding:4px 10px;border-radius:6px;display:inline-block}
+.job-date{font-size:11px;color:var(--txt-xs);margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+
+/* ===== PAGINATION ===== */
+.pagination{max-width:1200px;margin:32px auto;display:flex;justify-content:center;gap:8px}
+.pagination button{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--txt-s);transition:.2s}
+.pagination button:hover{border-color:var(--gold);color:var(--gold-d)}
+.pagination button.active{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+.pagination button:disabled{opacity:.4;cursor:default}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(12,18,34,.6);z-index:200;display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px)}
+.modal-overlay.show{display:flex}
+.modal{background:var(--card);border-radius:20px;max-width:700px;width:100%;max-height:85vh;overflow-y:auto;position:relative;animation:modalIn .3s ease}
+@keyframes modalIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.modal-close{position:absolute;top:16px;left:16px;background:var(--bg);border:none;width:36px;height:36px;border-radius:50%;font-size:18px;color:var(--txt-s);display:flex;align-items:center;justify-content:center;transition:.2s;z-index:1}
+.modal-close:hover{background:var(--navy);color:#fff}
+.modal-header{padding:32px 32px 0;border-bottom:none}
+.modal-cat{display:inline-block;font-size:12px;font-weight:700;padding:4px 14px;border-radius:6px;margin-bottom:14px;background:rgba(212,165,74,.12);color:var(--gold-d)}
+.modal-title{font-size:24px;font-weight:900;color:var(--txt);margin-bottom:8px}
+.modal-company{font-size:15px;color:var(--txt-s);margin-bottom:6px}
+.modal-body{padding:24px 32px 32px}
+.modal-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.modal-field{background:var(--bg);border-radius:10px;padding:14px 16px}
+.modal-field .label{font-size:11px;color:var(--txt-xs);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.modal-field .value{font-size:14px;font-weight:600;color:var(--txt)}
+.modal-summary{background:linear-gradient(135deg,rgba(212,165,74,.06),rgba(212,165,74,.02));border:1px solid rgba(212,165,74,.15);border-radius:12px;padding:18px 20px;margin-bottom:24px}
+.modal-summary h4{font-size:13px;font-weight:700;color:var(--gold-d);margin-bottom:6px}
+.modal-summary p{font-size:14px;color:var(--txt-s);line-height:1.7}
+.modal-raw{background:var(--bg);border-radius:12px;padding:18px 20px}
+.modal-raw h4{font-size:13px;font-weight:700;color:var(--txt-s);margin-bottom:8px}
+.modal-raw pre{font-family:'Tajawal',sans-serif;font-size:13px;color:var(--txt-s);white-space:pre-wrap;line-height:1.8;max-height:300px;overflow-y:auto}
+
+/* ===== EMPTY ===== */
+.empty-state{text-align:center;padding:80px 24px}
+.empty-state .icon{font-size:64px;margin-bottom:16px;opacity:.3}
+.empty-state h3{font-size:20px;font-weight:700;color:var(--txt-s);margin-bottom:8px}
+.empty-state p{font-size:14px;color:var(--txt-xs)}
+
+/* ===== FOOTER ===== */
+footer{background:var(--navy);padding:40px 24px;text-align:center;margin-top:48px}
+footer p{color:rgba(255,255,255,.4);font-size:13px}
+footer a{color:var(--gold);font-weight:600}
+
+/* ===== LOADING ===== */
+.loading{text-align:center;padding:40px}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+  .hero h2{font-size:28px}
+  .hero-stats{gap:20px}
+  .hero-stat .num{font-size:24px}
+  .search-box{flex-direction:column}
+  .search-btn{width:100%}
+  .filters-inner{flex-direction:column}
+  .filter-select{width:100%}
+  .cat-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  .jobs-grid{grid-template-columns:1fr}
+  .modal-fields{grid-template-columns:1fr}
+  .nav-links{display:none}
+  .modal{margin:0 12px;max-height:90vh}
+  .modal-header{padding:24px 20px 0}
+  .modal-body{padding:20px}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+<div class="nav-inner">
+  <div class="nav-brand">
+    <h1>قُدرات</h1>
+    <span>منصة الوظائف العراقية</span>
+  </div>
+  <div class="nav-links">
+    <a href="#" class="active" onclick="showSection('jobs')">الوظائف</a>
+    <a href="#" class="disabled">التدريب والتطوير</a>
+  </div>
+  <a href="/admin.html" class="nav-admin">لوحة التحكم</a>
+</div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+<div class="hero-inner">
+  <h2>اعثر على <span>وظيفتك</span> المثالية</h2>
+  <p>أحدث فرص العمل في العراق — يتم تحديثها لحظياً</p>
+  <div class="hero-stats" id="heroStats">
+    <div class="hero-stat"><div class="num" id="statJobs">-</div><div class="lbl">وظيفة متاحة</div></div>
+    <div class="hero-stat"><div class="num" id="statCats">-</div><div class="lbl">تصنيف</div></div>
+    <div class="hero-stat"><div class="num" id="statPending">-</div><div class="lbl">بانتظار النشر</div></div>
+  </div>
+  <div class="search-box">
+    <input type="text" class="search-input" id="searchInput" placeholder="ابحث عن وظيفة، شركة، أو مهارة..." oninput="onSearch()">
+    <button class="search-btn" onclick="onSearch()">بحث</button>
+  </div>
+</div>
+</div>
+
+<!-- FILTERS -->
+<div class="filters-bar">
+<div class="filters-inner">
+  <select class="filter-select" id="filterCategory" onchange="onFilterChange()">
+    <option value="">كل التصنيفات</option>
+  </select>
+  <select class="filter-select" id="filterLocation" onchange="onFilterChange()">
+    <option value="">كل المحافظات</option>
+  </select>
+  <select class="filter-select" id="filterDate" onchange="onFilterChange()">
+    <option value="">كل الأوقات</option>
+    <option value="1">اليوم</option>
+    <option value="3">آخر 3 أيام</option>
+    <option value="7">آخر أسبوع</option>
+    <option value="30">آخر شهر</option>
+  </select>
+  <div id="activeTags"></div>
+  <span class="filters-clear" id="clearFilters" onclick="clearAllFilters()" style="display:none">مسح الفلاتر</span>
+</div>
+</div>
+
+<!-- CATEGORIES -->
+<div class="section" id="categoriesSection">
+<div class="section-head"><h3>تصفح حسب المجال</h3></div>
+<div class="cat-grid" id="catGrid"></div>
+</div>
+
+<!-- JOBS -->
+<div class="section" id="jobsSection">
+<div class="section-head">
+  <h3 id="jobsTitle">أحدث الوظائف</h3>
+  <span id="jobsCount" style="color:var(--txt-xs);font-size:14px"></span>
+</div>
+<div id="jobsContainer">
+  <div class="loading"><div class="spinner"></div><p style="color:var(--txt-xs);font-size:14px">جاري التحميل...</p></div>
+</div>
+<div class="pagination" id="pagination"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+<div class="modal">
+  <button class="modal-close" onclick="closeModal()">✕</button>
+  <div class="modal-header" id="modalHeader"></div>
+  <div class="modal-body" id="modalBody"></div>
+</div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+<p>© 2026 <a href="#">قُدرات</a> — جميع الحقوق محفوظة</p>
+</footer>
+
+<script>
+const CAT_ICONS = {
+  HR:"👥",Admin:"📋",Sales:"💰","Customer Service":"🎧",Accounting:"🧮",Finance:"📊",
+  Engineering:"⚙️",IT:"💻",Marketing:"📣",Logistics:"🚛",Procurement:"🛒",
+  Legal:"⚖️",Medical:"🏥",Education:"📚",Operations:"🔧",Management:"👔",
+  Hospitality:"🏨",Other:"📌"
+};
+
+let currentPage = 1;
+let currentCategory = "";
+let currentLocation = "";
+let currentSearch = "";
+let categories = [];
+let locations = [];
+
+// ===== INIT =====
+async function init() {
+  await Promise.all([loadStats(), loadCategories(), loadJobs()]);
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch("/api/stats");
+    const data = await res.json();
+    document.getElementById("statJobs").textContent = data.published || 0;
+    document.getElementById("statCats").textContent = data.categories || 0;
+    document.getElementById("statPending").textContent = data.pending || 0;
+    locations = data.locations || [];
+    populateLocations();
+  } catch(e) { console.error(e); }
+}
+
+async function loadCategories() {
+  try {
+    const res = await fetch("/api/categories");
+    categories = await res.json();
+    renderCategories();
+    populateCategoryFilter();
+  } catch(e) { console.error(e); }
+}
+
+function populateCategoryFilter() {
+  const sel = document.getElementById("filterCategory");
+  sel.innerHTML = '<option value="">كل التصنيفات</option>';
+  categories.forEach(c => {
+    sel.innerHTML += `<option value="${c.key}">${c.name_ar} (${c.count})</option>`;
+  });
+}
+
+function populateLocations() {
+  const sel = document.getElementById("filterLocation");
+  sel.innerHTML = '<option value="">كل المحافظات</option>';
+  locations.forEach(loc => {
+    sel.innerHTML += `<option value="${loc}">${loc}</option>`;
+  });
+}
+
+function renderCategories() {
+  const grid = document.getElementById("catGrid");
+  grid.innerHTML = categories.map(c => `
+    <div class="cat-card ${currentCategory === c.key ? 'active' : ''}" onclick="selectCategory('${c.key}')">
+      <span class="cat-icon">${CAT_ICONS[c.key] || "📌"}</span>
+      <div class="cat-name">${c.name_ar}</div>
+      <div class="cat-count">${c.count} وظيفة</div>
+    </div>
+  `).join("");
+}
+
+function selectCategory(key) {
+  currentCategory = currentCategory === key ? "" : key;
+  currentPage = 1;
+  document.getElementById("filterCategory").value = currentCategory;
+  renderCategories();
+  loadJobs();
+  updateTags();
+}
+
+// ===== SEARCH & FILTERS =====
+let searchTimer;
+function onSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    currentSearch = document.getElementById("searchInput").value.trim();
+    currentPage = 1;
+    loadJobs();
+    updateTags();
+  }, 400);
+}
+
+function onFilterChange() {
+  currentCategory = document.getElementById("filterCategory").value;
+  currentLocation = document.getElementById("filterLocation").value;
+  currentPage = 1;
+  renderCategories();
+  loadJobs();
+  updateTags();
+}
+
+function clearAllFilters() {
+  currentCategory = "";
+  currentLocation = "";
+  currentSearch = "";
+  currentPage = 1;
+  document.getElementById("searchInput").value = "";
+  document.getElementById("filterCategory").value = "";
+  document.getElementById("filterLocation").value = "";
+  document.getElementById("filterDate").value = "";
+  renderCategories();
+  loadJobs();
+  updateTags();
+}
+
+function updateTags() {
+  const container = document.getElementById("activeTags");
+  const clear = document.getElementById("clearFilters");
+  let html = "";
+  if (currentCategory) {
+    const cat = categories.find(c => c.key === currentCategory);
+    html += `<span class="filter-tag">${cat?.name_ar || currentCategory}<button onclick="currentCategory='';document.getElementById('filterCategory').value='';renderCategories();loadJobs();updateTags()">×</button></span>`;
+  }
+  if (currentLocation) {
+    html += `<span class="filter-tag">${currentLocation}<button onclick="currentLocation='';document.getElementById('filterLocation').value='';loadJobs();updateTags()">×</button></span>`;
+  }
+  if (currentSearch) {
+    html += `<span class="filter-tag">"${currentSearch}"<button onclick="currentSearch='';document.getElementById('searchInput').value='';loadJobs();updateTags()">×</button></span>`;
+  }
+  container.innerHTML = html;
+  clear.style.display = (currentCategory || currentLocation || currentSearch) ? "inline" : "none";
+}
+
+// ===== JOBS =====
+async function loadJobs() {
+  const container = document.getElementById("jobsContainer");
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p style="color:var(--txt-xs);font-size:14px">جاري التحميل...</p></div>';
+
+  try {
+    const params = new URLSearchParams();
+    if (currentCategory) params.set("category", currentCategory);
+    if (currentLocation) params.set("location", currentLocation);
+    if (currentSearch) params.set("search", currentSearch);
+    params.set("page", currentPage);
+    params.set("limit", 24);
+
+    const dateFilter = document.getElementById("filterDate").value;
+    // Date filtering done client-side since API doesn't have date param
+
+    const res = await fetch(`/api/jobs?${params}`);
+    const data = await res.json();
+
+    let jobs = data.jobs || [];
+
+    // Client-side date filter
+    if (dateFilter) {
+      const days = Number(dateFilter);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      jobs = jobs.filter(j => new Date(j.published_at) >= cutoff);
+    }
+
+    const title = document.getElementById("jobsTitle");
+    const count = document.getElementById("jobsCount");
+
+    if (currentCategory) {
+      const cat = categories.find(c => c.key === currentCategory);
+      title.textContent = `وظائف ${cat?.name_ar || currentCategory}`;
+    } else if (currentSearch) {
+      title.textContent = `نتائج البحث`;
+    } else {
+      title.textContent = "أحدث الوظائف";
+    }
+    count.textContent = `${data.total} وظيفة`;
+
+    if (jobs.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🔍</div>
+          <h3>لا توجد نتائج</h3>
+          <p>جرّب تغيير الفلاتر أو البحث بكلمات مختلفة</p>
+        </div>`;
+      document.getElementById("pagination").innerHTML = "";
+      return;
+    }
+
+    container.innerHTML = `<div class="jobs-grid">${jobs.map(renderJobCard).join("")}</div>`;
+    renderPagination(data.pages, data.page);
+  } catch(e) {
+    console.error(e);
+    container.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><h3>خطأ في التحميل</h3></div>';
+  }
+}
+
+function renderJobCard(job) {
+  const catObj = categories.find(c => c.key === job.category);
+  const catName = catObj?.name_ar || job.category;
+  const date = job.published_at ? formatDate(job.published_at) : "";
+  const hasSalary = job.salary && job.salary !== "غير مذكور";
+
+  return `
+    <div class="job-card" onclick="openJob(${job.id})">
+      <span class="job-cat-badge">${catName}</span>
+      <div class="job-title">${esc(job.title)}</div>
+      <div class="job-company">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/></svg>
+        ${esc(job.company)}
+      </div>
+      <div class="job-meta">
+        <span class="job-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          ${esc(job.location)}
+        </span>
+        ${job.experience && job.experience !== "غير مذكور" ? `
+        <span class="job-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ${esc(job.experience)}
+        </span>` : ""}
+      </div>
+      ${hasSalary ? `<span class="job-salary">${esc(job.salary)}</span>` : ""}
+      <div class="job-date">${date}</div>
+    </div>`;
+}
+
+function renderPagination(total, current) {
+  const container = document.getElementById("pagination");
+  if (total <= 1) { container.innerHTML = ""; return; }
+
+  let html = `<button ${current <= 1 ? "disabled" : ""} onclick="goPage(${current-1})">السابق</button>`;
+  for (let i = 1; i <= total; i++) {
+    if (total > 7 && i > 3 && i < total - 2 && Math.abs(i - current) > 1) {
+      if (i === 4) html += `<button disabled>...</button>`;
+      continue;
+    }
+    html += `<button class="${i === current ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  html += `<button ${current >= total ? "disabled" : ""} onclick="goPage(${current+1})">التالي</button>`;
+  container.innerHTML = html;
+}
+
+function goPage(p) {
+  currentPage = p;
+  loadJobs();
+  window.scrollTo({ top: document.getElementById("jobsSection").offsetTop - 80, behavior: "smooth" });
+}
+
+// ===== MODAL =====
+async function openJob(id) {
+  document.getElementById("modal").classList.add("show");
+  document.body.style.overflow = "hidden";
+  document.getElementById("modalHeader").innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById("modalBody").innerHTML = "";
+
+  try {
+    const res = await fetch(`/api/jobs/${id}`);
+    const job = await res.json();
+
+    const catObj = categories.find(c => c.key === job.category);
+    const catName = catObj?.name_ar || job.category;
+
+    document.getElementById("modalHeader").innerHTML = `
+      <span class="modal-cat">${catName}</span>
+      <div class="modal-title">${esc(job.title)}</div>
+      <div class="modal-company">${esc(job.company)}</div>
+    `;
+
+    let fieldsHTML = `
+      <div class="modal-field"><div class="label">الموقع</div><div class="value">${esc(job.location)}</div></div>
+      <div class="modal-field"><div class="label">الراتب</div><div class="value">${esc(job.salary)}</div></div>
+      <div class="modal-field"><div class="label">الخبرة</div><div class="value">${esc(job.experience || "غير مذكور")}</div></div>
+      <div class="modal-field"><div class="label">التواصل</div><div class="value" style="word-break:break-all">${esc(job.contact)}</div></div>
+    `;
+
+    document.getElementById("modalBody").innerHTML = `
+      <div class="modal-fields">${fieldsHTML}</div>
+      ${job.summary ? `<div class="modal-summary"><h4>ملخص</h4><p>${esc(job.summary)}</p></div>` : ""}
+      <div class="modal-raw"><h4>النص الأصلي</h4><pre>${esc(job.raw_text)}</pre></div>
+    `;
+  } catch(e) {
+    document.getElementById("modalHeader").innerHTML = '<div class="empty-state"><h3>خطأ في التحميل</h3></div>';
+  }
+}
+
+function closeModal() {
+  document.getElementById("modal").classList.remove("show");
+  document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// ===== HELPERS =====
+function esc(s) { if (!s) return "غير مذكور"; const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+function formatDate(str) {
+  try {
+    const d = new Date(str);
+    const now = new Date();
+    const diff = Math.floor((now - d) / (1000*60*60*24));
+    if (diff === 0) return "اليوم";
+    if (diff === 1) return "أمس";
+    if (diff < 7) return `قبل ${diff} أيام`;
+    if (diff < 30) return `قبل ${Math.floor(diff/7)} أسابيع`;
+    return d.toLocaleDateString("ar-IQ");
+  } catch(e) { return ""; }
+}
+
+// ===== START =====
+init();
+</script>
+</body>
+</html>
